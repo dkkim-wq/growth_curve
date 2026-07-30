@@ -254,11 +254,12 @@ def main():
             errs = [r['avg_error'] for r in results_all[method]]
             with col:
                 if errs:
-                    avg_err = np.mean(errs)
+                    avg_abs_err = np.mean([abs(e) for e in errs])
+                    avg_bias = np.mean(errs)
                     st.metric(
                         f"방식 {method} ({method_labels[method]})",
-                        f"{avg_err:+.2f}%",
-                        f"대상 {len(errs)}개 매장"
+                        f"{avg_abs_err:.2f}%",
+                        f"편향 {avg_bias:+.2f}% | {len(errs)}개 매장"
                     )
                 else:
                     st.metric(f"방식 {method}", "데이터 없음", "0개 매장")
@@ -267,10 +268,11 @@ def main():
         valid_methods = [m for m in ['A', 'B', 'C'] if results_all[m]]
         if valid_methods:
             best = min(valid_methods,
-                       key=lambda m: abs(np.mean([r['avg_error'] for r in results_all[m]])))
+                       key=lambda m: np.mean([abs(r['avg_error']) for r in results_all[m]]))
+            best_abs = np.mean([abs(r['avg_error']) for r in results_all[best]])
             st.success(
                 f"★ 최적 방식: **{best} ({method_labels[best]})** — "
-                f"평균 오차율 {np.mean([r['avg_error'] for r in results_all[best]]):+.2f}%"
+                f"평균 오차율 {best_abs:.2f}%"
             )
 
         st.markdown("---")
@@ -285,7 +287,8 @@ def main():
                 '기준매출': f"{r['base_revenue']:,.0f}",
                 '예측평균(m4-9)': f"{np.mean(r['predicted']):,.0f}",
                 '실제평균(m4-9)': f"{np.mean(r['actual']):,.0f}",
-                '오차율(%)': f"{r['avg_error']:+.2f}%"
+                '오차율': f"{r['avg_error']:+.2f}%",
+                '|오차율|': f"{abs(r['avg_error']):.2f}%"
             } for r in sorted(results, key=lambda x: abs(x['avg_error']))])
 
             st.dataframe(
