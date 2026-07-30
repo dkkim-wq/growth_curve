@@ -150,18 +150,23 @@ def validate_store(store, curve_index, method='A'):
         else:
             return None
 
-    # 오차율
+    # 월별 오차율 (부호 포함: 예측 > 실제면 +, 예측 < 실제면 -)
     errors = []
     for pred, actual in zip(predicted, actual_m4_m9):
-        error_pct = abs(pred - actual) / actual * 100
+        error_pct = (pred - actual) / actual * 100
         errors.append(error_pct)
+
+    # 평균 오차율: 예측평균(m4~9) vs 실제평균(m4~9)
+    pred_avg = np.mean(predicted)
+    actual_avg = np.mean(actual_m4_m9)
+    avg_error = (pred_avg - actual_avg) / actual_avg * 100
 
     return {
         'base_revenue': base_revenue,
         'predicted': predicted,
         'actual': actual_m4_m9,
         'errors': errors,
-        'avg_error': np.mean(errors)
+        'avg_error': avg_error
     }
 
 
@@ -250,10 +255,9 @@ def main():
             with col:
                 if errs:
                     avg_err = np.mean(errs)
-                    color = "🟢" if avg_err < 20 else "🟡" if avg_err < 30 else "🔴"
                     st.metric(
                         f"방식 {method} ({method_labels[method]})",
-                        f"{avg_err:.2f}%",
+                        f"{avg_err:+.2f}%",
                         f"대상 {len(errs)}개 매장"
                     )
                 else:
@@ -263,10 +267,10 @@ def main():
         valid_methods = [m for m in ['A', 'B', 'C'] if results_all[m]]
         if valid_methods:
             best = min(valid_methods,
-                       key=lambda m: np.mean([r['avg_error'] for r in results_all[m]]))
+                       key=lambda m: abs(np.mean([r['avg_error'] for r in results_all[m]])))
             st.success(
                 f"★ 최적 방식: **{best} ({method_labels[best]})** — "
-                f"평균 오차율 {np.mean([r['avg_error'] for r in results_all[best]]):.2f}%"
+                f"평균 오차율 {np.mean([r['avg_error'] for r in results_all[best]]):+.2f}%"
             )
 
         st.markdown("---")
@@ -281,22 +285,13 @@ def main():
                 '기준매출': f"{r['base_revenue']:,.0f}",
                 '예측평균(m4-9)': f"{np.mean(r['predicted']):,.0f}",
                 '실제평균(m4-9)': f"{np.mean(r['actual']):,.0f}",
-                '평균오차율(%)': round(r['avg_error'], 2)
-            } for r in sorted(results, key=lambda x: x['avg_error'])])
+                '오차율(%)': f"{r['avg_error']:+.2f}%"
+            } for r in sorted(results, key=lambda x: abs(x['avg_error']))])
 
-            # 오차율에 따른 색상
             st.dataframe(
                 df,
                 use_container_width=True,
-                hide_index=True,
-                column_config={
-                    '평균오차율(%)': st.column_config.ProgressColumn(
-                        "평균오차율(%)",
-                        min_value=0,
-                        max_value=100,
-                        format="%.1f%%"
-                    )
-                }
+                hide_index=True
             )
 
             # 분포 차트
@@ -341,7 +336,7 @@ def main():
                     st.markdown(f"**방식 {method} ({method_labels[method]})**")
                     if result:
                         st.metric("기준매출", f"{result['base_revenue']:,.0f}원")
-                        st.metric("평균오차율", f"{result['avg_error']:.2f}%")
+                        st.metric("평균오차율", f"{result['avg_error']:+.2f}%")
                     else:
                         st.info("데이터 부족")
 
@@ -355,7 +350,7 @@ def main():
                     '월차': [f'm{i}' for i in range(4, 10)],
                     '예측매출': [f"{p:,.0f}" for p in result['predicted']],
                     '실제매출': [f"{a:,.0f}" for a in result['actual']],
-                    '오차율(%)': [f"{e:.1f}%" for e in result['errors']]
+                    '오차율(%)': [f"{e:+.1f}%" for e in result['errors']]
                 })
                 st.dataframe(detail_df, use_container_width=True, hide_index=True)
 
