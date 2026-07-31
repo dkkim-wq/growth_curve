@@ -117,16 +117,10 @@ def load_excel_data():
 
 
 # ── 검증 함수 ─────────────────────────────────────────────────────
-def validate_store(store, curve_index, method='A'):
-    """
-    method: 'A' = m1부터, 'B' = m2부터, 'C' = m3부터
-    """
+def get_base_revenue(store, curve_index, method):
+    """단일 방식(A/B/C)의 기준매출 계산. 실패 시 None 반환."""
     sales = store['sales']
     if len(sales) < 10:
-        return None
-
-    actual_m4_m9 = sales[4:10]
-    if any(v is None or v <= 0 for v in actual_m4_m9):
         return None
 
     start_m = {'A': 1, 'B': 2, 'C': 3}[method]
@@ -143,8 +137,56 @@ def validate_store(store, curve_index, method='A'):
 
     if not base_estimates:
         return None
+    return np.mean(base_estimates)
 
-    base_revenue = np.mean(base_estimates)
+
+# 전체 방식 목록
+ALL_METHODS = ['A', 'B', 'C', 'AB', 'BC', 'ABC']
+METHOD_LABELS = {
+    'A': 'm1부터', 'B': 'm2부터', 'C': 'm3부터',
+    'AB': 'A+B 평균', 'BC': 'B+C 평균', 'ABC': 'A+B+C 평균'
+}
+
+
+def validate_store(store, curve_index, method='A'):
+    """
+    method: 'A','B','C' = 단일, 'AB','BC','ABC' = 복합(기준매출 평균)
+    """
+    sales = store['sales']
+    if len(sales) < 10:
+        return None
+
+    actual_m4_m9 = sales[4:10]
+    if any(v is None or v <= 0 for v in actual_m4_m9):
+        return None
+
+    # 기준매출 계산
+    if method in ('A', 'B', 'C'):
+        base_revenue = get_base_revenue(store, curve_index, method)
+    elif method == 'AB':
+        a = get_base_revenue(store, curve_index, 'A')
+        b = get_base_revenue(store, curve_index, 'B')
+        if a is None or b is None:
+            return None
+        base_revenue = (a + b) / 2
+    elif method == 'BC':
+        b = get_base_revenue(store, curve_index, 'B')
+        c = get_base_revenue(store, curve_index, 'C')
+        if b is None or c is None:
+            return None
+        base_revenue = (b + c) / 2
+    elif method == 'ABC':
+        a = get_base_revenue(store, curve_index, 'A')
+        b = get_base_revenue(store, curve_index, 'B')
+        c = get_base_revenue(store, curve_index, 'C')
+        if a is None or b is None or c is None:
+            return None
+        base_revenue = (a + b + c) / 3
+    else:
+        return None
+
+    if base_revenue is None:
+        return None
 
     # m4~m9 예측
     predicted = []
@@ -155,16 +197,15 @@ def validate_store(store, curve_index, method='A'):
         else:
             return None
 
-    # 월별 오차율 (부호 포함: 예측 > 실제면 +, 예측 < 실제면 -)
+    # 월별 오차율 (부호 포함)
     errors = []
     for pred, actual in zip(predicted, actual_m4_m9):
         error_pct = (pred - actual) / actual * 100
         errors.append(error_pct)
 
-    # 평균 오차율: 예측평균(m4~9) vs 실제평균(m4~9)
-    pred_avg = np.mean(predicted)
+    # 오차율: 기준매출 vs 실제평균(m4~9)
     actual_avg = np.mean(actual_m4_m9)
-    avg_error = (pred_avg - actual_avg) / actual_avg * 100
+    avg_error = (base_revenue - actual_avg) / actual_avg * 100
 
     return {
         'base_revenue': base_revenue,
@@ -220,12 +261,8 @@ def main():
         st.subheader("🔧 검증 방식")
         selected_method = st.radio(
             "역산 시작월 선택",
-            ['A', 'B', 'C'],
-            format_func=lambda x: {
-                'A': 'A: m1부터 역산',
-                'B': 'B: m2부터 역산',
-                'C': 'C: m3부터 역산'
-            }[x],
+            ALL_METHODS,
+            format_func=lambda x: f"{x}: {METHOD_LABELS[x]}",
             index=0
         )
 
@@ -241,9 +278,9 @@ def main():
     with tab1:
         st.subheader("🏪 전체 매장 검증 결과")
 
-        # 3가지 방식 비교
+        # 6가지 방식 비교
         results_all = {}
-        for method in ['A', 'B', 'C']:
+        for method in ALL_METHODS:
             results_all[method] = []
             for store in all_stores:
                 result = validate_store(store, curve_index, method)
@@ -252,33 +289,94 @@ def main():
                         'name': store['name'], **result
                     })
 
-        # 요약 카드
+        # 신뢰도 있는 평균 (트리밍 평균: 상하 10% 제거)
+        def trimmed_mean(values, trim_pct=0.1):
+            """상하 trim_pct% 제거 후 평균 (이상치 영향 최소화)"""
+            if not values:
+                return 0
+            sorted_vals = sorted(values)
+            n = len(sorted_vals)
+            trim_n = int(n * trim_pct)
+            if trim_n > 0:
+                trimmed = sorted_vals[trim_n:-trim_n]
+            else:
+                trimmed = sorted_vals
+            return np.mean(trimmed) if trimmed else np.mean(sorted_vals)
+
+        # 요약 카드 (6개 방식, 2행 × 3열)
+        st.markdown("##### 단일 방식")
         col1, col2, col3 = st.columns(3)
-        method_labels = {'A': 'm1부터', 'B': 'm2부터', 'C': 'm3부터'}
         for col, method in zip([col1, col2, col3], ['A', 'B', 'C']):
-            errs = [r['avg_error'] for r in results_all[method]]
+            errs = [abs(r['avg_error']) for r in results_all[method]]
             with col:
                 if errs:
-                    avg_abs_err = np.mean([abs(e) for e in errs])
-                    avg_bias = np.mean(errs)
+                    avg_abs_err = trimmed_mean(errs)
+                    std_err = np.std(errs)
                     st.metric(
-                        f"방식 {method} ({method_labels[method]})",
+                        f"방식 {method} ({METHOD_LABELS[method]})",
                         f"{avg_abs_err:.2f}%",
-                        f"편향 {avg_bias:+.2f}% | {len(errs)}개 매장"
+                        f"±{std_err:.1f}% (σ) | {len(errs)}개 매장"
+                    )
+                else:
+                    st.metric(f"방식 {method}", "데이터 없음", "0개 매장")
+
+        st.markdown("##### 복합 방식")
+        col4, col5, col6 = st.columns(3)
+        for col, method in zip([col4, col5, col6], ['AB', 'BC', 'ABC']):
+            errs = [abs(r['avg_error']) for r in results_all[method]]
+            with col:
+                if errs:
+                    avg_abs_err = trimmed_mean(errs)
+                    std_err = np.std(errs)
+                    st.metric(
+                        f"방식 {method} ({METHOD_LABELS[method]})",
+                        f"{avg_abs_err:.2f}%",
+                        f"±{std_err:.1f}% (σ) | {len(errs)}개 매장"
                     )
                 else:
                     st.metric(f"방식 {method}", "데이터 없음", "0개 매장")
 
         # 최적 방식 표시
-        valid_methods = [m for m in ['A', 'B', 'C'] if results_all[m]]
+        valid_methods = [m for m in ALL_METHODS if results_all[m]]
         if valid_methods:
             best = min(valid_methods,
-                       key=lambda m: np.mean([abs(r['avg_error']) for r in results_all[m]]))
-            best_abs = np.mean([abs(r['avg_error']) for r in results_all[best]])
+                       key=lambda m: trimmed_mean([abs(r['avg_error']) for r in results_all[m]]))
+            best_val = trimmed_mean([abs(r['avg_error']) for r in results_all[best]])
             st.success(
-                f"★ 최적 방식: **{best} ({method_labels[best]})** — "
-                f"평균 오차율 {best_abs:.2f}%"
+                f"★ 최적 방식: **{best} ({METHOD_LABELS[best]})** — "
+                f"트리밍 평균 오차율 {best_val:.2f}%"
             )
+
+        # 매장별 최적 방식 카운트
+        st.markdown("---")
+        st.subheader("🏆 방식별 최적 매장 수 랭킹")
+        best_count = {m: 0 for m in ALL_METHODS}
+        store_best_method = {}  # 매장별 최적 방식 저장
+
+        # 모든 매장에 대해 6가지 방식 중 절대 오차율이 가장 작은 것 선택
+        for store in all_stores:
+            min_err = None
+            min_method = None
+            for method in ALL_METHODS:
+                result = validate_store(store, curve_index, method)
+                if result is not None:
+                    abs_err = abs(result['avg_error'])
+                    if min_err is None or abs_err < min_err:
+                        min_err = abs_err
+                        min_method = method
+            if min_method is not None:
+                best_count[min_method] += 1
+                store_best_method[store['name']] = min_method
+
+        # 랭킹 표시 (많은 순)
+        ranked = sorted(best_count.items(), key=lambda x: x[1], reverse=True)
+        rank_df = pd.DataFrame([{
+            '순위': i + 1,
+            '방식': f"{m} ({METHOD_LABELS[m]})",
+            '최적 매장 수': cnt,
+            '비율': f"{cnt / sum(best_count.values()) * 100:.1f}%" if sum(best_count.values()) > 0 else "0%"
+        } for i, (m, cnt) in enumerate(ranked)])
+        st.dataframe(rank_df, use_container_width=True, hide_index=True)
 
         st.markdown("---")
 
@@ -290,10 +388,11 @@ def main():
             df = pd.DataFrame([{
                 '매장명': r['name'],
                 '기준매출': f"{r['base_revenue']:,.0f}",
-                '예측평균(m4-9)': f"{np.mean(r['predicted']):,.0f}",
                 '실제평균(m4-9)': f"{np.mean(r['actual']):,.0f}",
+                '오차(액수)': f"{r['base_revenue'] - np.mean(r['actual']):+,.0f}",
                 '오차율': f"{r['avg_error']:+.2f}%",
-                '|오차율|': f"{abs(r['avg_error']):.2f}%"
+                '|오차율|': f"{abs(r['avg_error']):.2f}%",
+                '최적방식': store_best_method.get(r['name'], '-')
             } for r in sorted(results, key=lambda x: abs(x['avg_error']))])
 
             st.dataframe(
@@ -311,7 +410,7 @@ def main():
                 marker_color='#2471A3', opacity=0.8
             ))
             fig_hist.update_layout(
-                xaxis_title="평균 오차율 (%)",
+                xaxis_title="오차율 (%)",
                 yaxis_title="매장 수",
                 template="plotly_white",
                 height=350
@@ -335,16 +434,30 @@ def main():
         if selected_store_name:
             store = next(s for s in all_stores if s['name'] == selected_store_name)
 
-            # 3가지 방식 결과
+            # 6가지 방식 결과
             st.markdown(f"### 📌 {selected_store_name}")
+
+            st.markdown("**단일 방식**")
             cols = st.columns(3)
             for i, method in enumerate(['A', 'B', 'C']):
                 result = validate_store(store, curve_index, method)
                 with cols[i]:
-                    st.markdown(f"**방식 {method} ({method_labels[method]})**")
+                    st.markdown(f"**방식 {method} ({METHOD_LABELS[method]})**")
                     if result:
                         st.metric("기준매출", f"{result['base_revenue']:,.0f}원")
-                        st.metric("평균오차율", f"{result['avg_error']:+.2f}%")
+                        st.metric("오차율", f"{result['avg_error']:+.2f}%")
+                    else:
+                        st.info("데이터 부족")
+
+            st.markdown("**복합 방식**")
+            cols2 = st.columns(3)
+            for i, method in enumerate(['AB', 'BC', 'ABC']):
+                result = validate_store(store, curve_index, method)
+                with cols2[i]:
+                    st.markdown(f"**방식 {method} ({METHOD_LABELS[method]})**")
+                    if result:
+                        st.metric("기준매출", f"{result['base_revenue']:,.0f}원")
+                        st.metric("오차율", f"{result['avg_error']:+.2f}%")
                     else:
                         st.info("데이터 부족")
 
