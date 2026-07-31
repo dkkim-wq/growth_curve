@@ -45,7 +45,7 @@ st.markdown("""
 
 # ── 파일 경로 ─────────────────────────────────────────────────────
 FILE_PATH = os.path.join(os.path.dirname(__file__),
-                         "260618 경쟁사유무에 따른 성장곡선(공유)V2.xlsx")
+                         "260618 경쟁사유무에 따른 성장곡선(공유)V3.xlsx")
 ADDED_STORES_PATH = os.path.join(os.path.dirname(__file__),
                                   "added_stores.json")
 
@@ -66,46 +66,51 @@ def save_added_stores(stores_list):
 # ── 엑셀 데이터 로드 (캐시) ───────────────────────────────────────
 @st.cache_data
 def load_excel_data():
-    """엑셀에서 곡선지수와 매장 매출 데이터를 로드"""
-    wb = openpyxl.load_workbook(FILE_PATH, data_only=True)
+    """V3 엑셀에서 곡선지수와 매장 매출 데이터를 로드"""
+    wb = openpyxl.load_workbook(FILE_PATH, data_only=True, read_only=True)
 
-    # 1. 가중평균 곡선지수
+    # 1. 가중평균 곡선지수 (6열: 가중평균(0~2))
     ws_curve = wb['요약_성장곡선']
     curve_index = {}
-    for row in range(3, 51):
-        m = ws_curve.cell(row=row, column=1).value
-        g0 = ws_curve.cell(row=row, column=2).value
-        g1 = ws_curve.cell(row=row, column=3).value
-        g2 = ws_curve.cell(row=row, column=4).value
-        n0 = ws_curve.cell(row=row, column=7).value
-        n1 = ws_curve.cell(row=row, column=8).value
-        n2 = ws_curve.cell(row=row, column=9).value
-        if all(v is not None and v != 0 for v in [g0, g1, g2, n0, n1, n2]):
-            w_avg = (g0 * n0 + g1 * n1 + g2 * n2) / (n0 + n1 + n2)
+    for row in ws_curve.iter_rows(min_row=3, max_row=150, max_col=10,
+                                   values_only=True):
+        m = row[0]   # 오픈후개월(m)
+        w_avg = row[5]  # 가중평균(0~2)
+        if m is not None and w_avg is not None and w_avg != 0:
             curve_index[int(m)] = w_avg
 
-    # 2. Raw_매출 매장 데이터
-    ws_raw = wb['Raw_매출']
-    stores = []
-    for row in range(2, ws_raw.max_row + 1):
-        name = ws_raw.cell(row=row, column=1).value
-        if name is None or name == '세탁건조매출':
-            continue
-        sales = []
-        for col in range(2, ws_raw.max_column + 1):
-            val = ws_raw.cell(row=row, column=col).value
-            sales.append(val)
+    # 2. RAW_매출A: 세로 형태 → 매장별 월매출 리스트로 변환
+    ws_raw = wb['RAW_매출A']
+    from collections import defaultdict
+    store_data = defaultdict(lambda: {'open_date': None, 'monthly': {}})
 
-        # 첫 매출 위치 찾기
-        first_idx = None
-        for i, s in enumerate(sales):
-            if s is not None and s > 0:
-                first_idx = i
-                break
-        if first_idx is None:
+    for row in ws_raw.iter_rows(min_row=2, max_col=10, values_only=True):
+        date_val = row[0]      # 해당월
+        store_name = row[1]    # 지점키
+        open_date = row[3]     # 개점일
+        sales = row[6]         # 세탁건조매출
+
+        if store_name is None or date_val is None:
             continue
-        monthly_sales = sales[first_idx:]
-        stores.append({'name': name, 'sales': monthly_sales})
+
+        if store_data[store_name]['open_date'] is None and open_date:
+            store_data[store_name]['open_date'] = open_date
+
+        if sales is not None and sales > 0:
+            store_data[store_name]['monthly'][date_val] = sales
+
+    # 매장별로 개점일 기준 월차(m0, m1, ...) 순서로 매출 정렬
+    stores = []
+    for name, data in store_data.items():
+        if not data['monthly'] or not data['open_date']:
+            continue
+
+        # 날짜순 정렬
+        sorted_months = sorted(data['monthly'].keys())
+        sales_list = [data['monthly'][m] for m in sorted_months]
+
+        if len(sales_list) >= 4:  # 최소 데이터 필요
+            stores.append({'name': name, 'sales': sales_list})
 
     wb.close()
     return curve_index, stores
