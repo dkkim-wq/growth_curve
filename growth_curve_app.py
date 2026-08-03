@@ -391,7 +391,6 @@ def main():
                 '실제평균(m4-9)': f"{np.mean(r['actual']):,.0f}",
                 '오차(액수)': f"{r['base_revenue'] - np.mean(r['actual']):+,.0f}",
                 '오차율': f"{r['avg_error']:+.2f}%",
-                '|오차율|': f"{abs(r['avg_error']):.2f}%",
                 '최적방식': store_best_method.get(r['name'], '-')
             } for r in sorted(results, key=lambda x: abs(x['avg_error']))])
 
