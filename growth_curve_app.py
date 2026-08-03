@@ -303,47 +303,81 @@ def main():
                 trimmed = sorted_vals
             return np.mean(trimmed) if trimmed else np.mean(sorted_vals)
 
-        # 요약 카드 (6개 방식, 2행 × 3열)
-        st.markdown("##### 단일 방식")
-        col1, col2, col3 = st.columns(3)
-        for col, method in zip([col1, col2, col3], ['A', 'B', 'C']):
-            errs = [abs(r['avg_error']) for r in results_all[method]]
-            with col:
-                if errs:
-                    avg_abs_err = trimmed_mean(errs)
-                    std_err = np.std(errs)
-                    st.metric(
-                        f"방식 {method} ({METHOD_LABELS[method]})",
-                        f"{avg_abs_err:.2f}%",
-                        f"±{std_err:.1f}% (σ) | {len(errs)}개 매장"
-                    )
-                else:
-                    st.metric(f"방식 {method}", "데이터 없음", "0개 매장")
-
-        st.markdown("##### 복합 방식")
-        col4, col5, col6 = st.columns(3)
-        for col, method in zip([col4, col5, col6], ['AB', 'BC', 'ABC']):
-            errs = [abs(r['avg_error']) for r in results_all[method]]
-            with col:
-                if errs:
-                    avg_abs_err = trimmed_mean(errs)
-                    std_err = np.std(errs)
-                    st.metric(
-                        f"방식 {method} ({METHOD_LABELS[method]})",
-                        f"{avg_abs_err:.2f}%",
-                        f"±{std_err:.1f}% (σ) | {len(errs)}개 매장"
-                    )
-                else:
-                    st.metric(f"방식 {method}", "데이터 없음", "0개 매장")
-
-        # 최적 방식 표시
+        # 최적 방식 찾기
         valid_methods = [m for m in ALL_METHODS if results_all[m]]
+        best_overall = None
         if valid_methods:
-            best = min(valid_methods,
-                       key=lambda m: trimmed_mean([abs(r['avg_error']) for r in results_all[m]]))
-            best_val = trimmed_mean([abs(r['avg_error']) for r in results_all[best]])
+            best_overall = min(valid_methods,
+                               key=lambda m: trimmed_mean([abs(r['avg_error']) for r in results_all[m]]))
+
+        # 요약 카드 (6개 방식 HTML 카드)
+        summary_html = '<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 1rem 0;">'
+        for method in ALL_METHODS:
+            errs = [abs(r['avg_error']) for r in results_all[method]]
+            if errs:
+                avg_abs_err = trimmed_mean(errs)
+                std_err = np.std(errs)
+                bias = np.mean([r['avg_error'] for r in results_all[method]])
+                n_stores = len(errs)
+
+                # 색상
+                if method == best_overall:
+                    border_color = '#2ECC71'
+                    bg_color = '#EAFAF1'
+                    badge = '<span style="background: #2ECC71; color: white; font-size: 0.6rem; padding: 2px 8px; border-radius: 10px;">★ 최적</span>'
+                elif avg_abs_err <= 12:
+                    border_color = '#3498DB'
+                    bg_color = '#EBF5FB'
+                    badge = ''
+                elif avg_abs_err <= 18:
+                    border_color = '#F39C12'
+                    bg_color = '#FEF9E7'
+                    badge = ''
+                else:
+                    border_color = '#E74C3C'
+                    bg_color = '#FDEDEC'
+                    badge = ''
+
+                bias_color = '#E74C3C' if bias > 0 else '#2471A3'
+                bias_sign = '+' if bias > 0 else ''
+
+                summary_html += f'''
+                <div style="background: {bg_color}; border: 2px solid {border_color}; border-radius: 10px; padding: 18px; text-align: center;">
+                    <div style="font-size: 0.8rem; color: #5D6D7E; font-weight: 700; margin-bottom: 10px;">
+                        {method} ({METHOD_LABELS[method]}) {badge}
+                    </div>
+                    <div style="font-size: 1.6rem; font-weight: bold; color: #1A3A5C;">{avg_abs_err:.2f}%</div>
+                    <div style="font-size: 0.7rem; color: #95A5A6; margin-bottom: 8px;">트리밍 평균 오차율</div>
+                    <div style="display: flex; justify-content: space-around; margin-top: 8px;">
+                        <div>
+                            <div style="font-size: 0.85rem; font-weight: 600; color: {bias_color};">{bias_sign}{bias:.1f}%</div>
+                            <div style="font-size: 0.6rem; color: #ADB5BD;">편향</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.85rem; font-weight: 600; color: #5D6D7E;">±{std_err:.1f}%</div>
+                            <div style="font-size: 0.6rem; color: #ADB5BD;">표준편차</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.85rem; font-weight: 600; color: #5D6D7E;">{n_stores}개</div>
+                            <div style="font-size: 0.6rem; color: #ADB5BD;">매장</div>
+                        </div>
+                    </div>
+                </div>'''
+            else:
+                summary_html += f'''
+                <div style="background: #F8F9FA; border: 1px solid #DEE2E6; border-radius: 10px; padding: 18px; text-align: center; opacity: 0.6;">
+                    <div style="font-size: 0.8rem; color: #6C757D; font-weight: 600;">{method} ({METHOD_LABELS[method]})</div>
+                    <div style="font-size: 1rem; color: #ADB5BD; margin-top: 10px;">데이터 없음</div>
+                </div>'''
+
+        summary_html += '</div>'
+        st.markdown(summary_html, unsafe_allow_html=True)
+
+        # 최적 방식 배너
+        if best_overall:
+            best_val = trimmed_mean([abs(r['avg_error']) for r in results_all[best_overall]])
             st.success(
-                f"★ 최적 방식: **{best} ({METHOD_LABELS[best]})** — "
+                f"★ 최적 방식: **{best_overall} ({METHOD_LABELS[best_overall]})** — "
                 f"트리밍 평균 오차율 {best_val:.2f}%"
             )
 
