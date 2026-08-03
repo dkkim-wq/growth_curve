@@ -439,31 +439,78 @@ def main():
             # 실제평균 한 번만 표시
             sample_result = validate_store(store, curve_index, 'A')
             if sample_result:
-                st.markdown(f"**실제평균(m4-9): {np.mean(sample_result['actual']):,.0f}원**")
+                actual_avg = np.mean(sample_result['actual'])
+                st.markdown(f"**실제평균(m4-9): :blue[{actual_avg:,.0f}원]**")
 
-            st.markdown("**단일 방식**")
-            cols = st.columns(3)
-            for i, method in enumerate(['A', 'B', 'C']):
+            # 6가지 방식을 HTML 카드 형식으로
+            method_results = []
+            for method in ALL_METHODS:
                 result = validate_store(store, curve_index, method)
-                with cols[i]:
-                    st.markdown(f"**방식 {method} ({METHOD_LABELS[method]})**")
-                    if result:
-                        st.metric("기준매출", f"{result['base_revenue']:,.0f}원")
-                        st.metric("오차율", f"{result['avg_error']:+.2f}%")
-                    else:
-                        st.info("데이터 부족")
+                if result:
+                    err = result['avg_error']
+                    method_results.append({
+                        'method': method,
+                        'label': METHOD_LABELS[method],
+                        'base': result['base_revenue'],
+                        'error': err,
+                        'available': True
+                    })
+                else:
+                    method_results.append({
+                        'method': method,
+                        'label': METHOD_LABELS[method],
+                        'base': 0,
+                        'error': 0,
+                        'available': False
+                    })
 
-            st.markdown("**복합 방식**")
-            cols2 = st.columns(3)
-            for i, method in enumerate(['AB', 'BC', 'ABC']):
-                result = validate_store(store, curve_index, method)
-                with cols2[i]:
-                    st.markdown(f"**방식 {method} ({METHOD_LABELS[method]})**")
-                    if result:
-                        st.metric("기준매출", f"{result['base_revenue']:,.0f}원")
-                        st.metric("오차율", f"{result['avg_error']:+.2f}%")
+            # 최적 방식 찾기
+            available = [r for r in method_results if r['available']]
+            best_method = min(available, key=lambda x: abs(x['error']))['method'] if available else None
+
+            # HTML 카드 그리드
+            cards_html = '<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 1rem 0;">'
+            for r in method_results:
+                if not r['available']:
+                    cards_html += f'''
+                    <div style="background: #F8F9FA; border: 1px solid #DEE2E6; border-radius: 8px; padding: 16px; text-align: center; opacity: 0.6;">
+                        <div style="font-size: 0.75rem; color: #6C757D; margin-bottom: 4px;">{r['method']} ({r['label']})</div>
+                        <div style="font-size: 0.9rem; color: #ADB5BD;">데이터 부족</div>
+                    </div>'''
+                else:
+                    # 색상 결정
+                    abs_err = abs(r['error'])
+                    if r['method'] == best_method:
+                        border_color = '#2ECC71'
+                        bg_color = '#EAFAF1'
+                        badge = '<span style="background: #2ECC71; color: white; font-size: 0.65rem; padding: 2px 6px; border-radius: 10px; margin-left: 4px;">최적</span>'
+                    elif abs_err <= 10:
+                        border_color = '#3498DB'
+                        bg_color = '#EBF5FB'
+                        badge = ''
+                    elif abs_err <= 20:
+                        border_color = '#F39C12'
+                        bg_color = '#FEF9E7'
+                        badge = ''
                     else:
-                        st.info("데이터 부족")
+                        border_color = '#E74C3C'
+                        bg_color = '#FDEDEC'
+                        badge = ''
+
+                    err_color = '#E74C3C' if r['error'] > 0 else '#2471A3'
+                    sign = '+' if r['error'] > 0 else ''
+
+                    cards_html += f'''
+                    <div style="background: {bg_color}; border: 2px solid {border_color}; border-radius: 8px; padding: 16px; text-align: center;">
+                        <div style="font-size: 0.75rem; color: #5D6D7E; margin-bottom: 8px; font-weight: 600;">{r['method']} ({r['label']}){badge}</div>
+                        <div style="font-size: 1.1rem; font-weight: bold; color: #1A3A5C;">{r['base']:,.0f}원</div>
+                        <div style="font-size: 0.7rem; color: #95A5A6; margin: 2px 0;">기준매출</div>
+                        <div style="font-size: 1rem; font-weight: bold; color: {err_color}; margin-top: 6px;">{sign}{r['error']:.2f}%</div>
+                        <div style="font-size: 0.7rem; color: #95A5A6;">오차율</div>
+                    </div>'''
+
+            cards_html += '</div>'
+            st.markdown(cards_html, unsafe_allow_html=True)
 
             # 선택 방식 상세
             result = validate_store(store, curve_index, selected_method)
