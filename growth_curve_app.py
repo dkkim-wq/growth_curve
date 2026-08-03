@@ -444,6 +444,7 @@ def main():
                     st.markdown(f"**방식 {method} ({METHOD_LABELS[method]})**")
                     if result:
                         st.metric("기준매출", f"{result['base_revenue']:,.0f}원")
+                        st.metric("실제평균(m4-9)", f"{np.mean(result['actual']):,.0f}원")
                         st.metric("오차율", f"{result['avg_error']:+.2f}%")
                     else:
                         st.info("데이터 부족")
@@ -456,6 +457,7 @@ def main():
                     st.markdown(f"**방식 {method} ({METHOD_LABELS[method]})**")
                     if result:
                         st.metric("기준매출", f"{result['base_revenue']:,.0f}원")
+                        st.metric("실제평균(m4-9)", f"{np.mean(result['actual']):,.0f}원")
                         st.metric("오차율", f"{result['avg_error']:+.2f}%")
                     else:
                         st.info("데이터 부족")
