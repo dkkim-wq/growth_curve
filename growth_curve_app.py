@@ -436,6 +436,11 @@ def main():
             # 6가지 방식 결과
             st.markdown(f"### 📌 {selected_store_name}")
 
+            # 실제평균 한 번만 표시
+            sample_result = validate_store(store, curve_index, 'A')
+            if sample_result:
+                st.markdown(f"**실제평균(m4-9): {np.mean(sample_result['actual']):,.0f}원**")
+
             st.markdown("**단일 방식**")
             cols = st.columns(3)
             for i, method in enumerate(['A', 'B', 'C']):
@@ -444,7 +449,6 @@ def main():
                     st.markdown(f"**방식 {method} ({METHOD_LABELS[method]})**")
                     if result:
                         st.metric("기준매출", f"{result['base_revenue']:,.0f}원")
-                        st.metric("실제평균(m4-9)", f"{np.mean(result['actual']):,.0f}원")
                         st.metric("오차율", f"{result['avg_error']:+.2f}%")
                     else:
                         st.info("데이터 부족")
@@ -457,7 +461,6 @@ def main():
                     st.markdown(f"**방식 {method} ({METHOD_LABELS[method]})**")
                     if result:
                         st.metric("기준매출", f"{result['base_revenue']:,.0f}원")
-                        st.metric("실제평균(m4-9)", f"{np.mean(result['actual']):,.0f}원")
                         st.metric("오차율", f"{result['avg_error']:+.2f}%")
                     else:
                         st.info("데이터 부족")
