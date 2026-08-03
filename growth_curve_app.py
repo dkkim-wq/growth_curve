@@ -143,7 +143,7 @@ def get_base_revenue(store, curve_index, method):
 # 전체 방식 목록
 ALL_METHODS = ['A', 'B', 'C', 'AB', 'BC', 'ABC']
 METHOD_LABELS = {
-    'A': 'm1부터', 'B': 'm2부터', 'C': 'm3부터',
+    'A': 'm1,m2,m3 사용', 'B': 'm2,m3 사용', 'C': 'm3 사용',
     'AB': 'A+B 평균', 'BC': 'B+C 평균', 'ABC': 'A+B+C 평균'
 }
 
@@ -343,8 +343,8 @@ def main():
 
                 summary_html += f'''
                 <div style="background: {bg_color}; border: 2px solid {border_color}; border-radius: 10px; padding: 18px; text-align: center;">
-                    <div style="font-size: 0.8rem; color: #5D6D7E; font-weight: 700; margin-bottom: 10px;">
-                        {method} ({METHOD_LABELS[method]}) {badge}
+                    <div style="font-size: 1.1rem; color: #1A3A5C; font-weight: 800; margin-bottom: 10px;">
+                        {method} <span style="font-size: 0.75rem; color: #5D6D7E; font-weight: 600;">({METHOD_LABELS[method]})</span> {badge}
                     </div>
                     <div style="font-size: 1.6rem; font-weight: bold; color: #1A3A5C;">{avg_abs_err:.2f}%</div>
                     <div style="font-size: 0.7rem; color: #95A5A6; margin-bottom: 8px;">트리밍 평균 오차율</div>
