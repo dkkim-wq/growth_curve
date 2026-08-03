@@ -402,15 +402,35 @@ def main():
                 best_count[min_method] += 1
                 store_best_method[store['name']] = min_method
 
-        # 랭킹 표시 (많은 순)
+        # 랭킹 표시 (많은 순) — HTML 바 차트
         ranked = sorted(best_count.items(), key=lambda x: x[1], reverse=True)
-        rank_df = pd.DataFrame([{
-            '순위': i + 1,
-            '방식': f"{m} ({METHOD_LABELS[m]})",
-            '최적 매장 수': cnt,
-            '비율': f"{cnt / sum(best_count.values()) * 100:.1f}%" if sum(best_count.values()) > 0 else "0%"
-        } for i, (m, cnt) in enumerate(ranked)])
-        st.dataframe(rank_df, use_container_width=True, hide_index=True)
+        total_stores = sum(best_count.values())
+        max_cnt = ranked[0][1] if ranked else 1
+
+        rank_colors = ['#2ECC71', '#3498DB', '#9B59B6', '#F39C12', '#E74C3C', '#95A5A6']
+        medal = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣', '6️⃣']
+
+        rank_html = '<div style="margin: 1rem 0;">'
+        for i, (m, cnt) in enumerate(ranked):
+            pct = cnt / total_stores * 100 if total_stores > 0 else 0
+            bar_width = cnt / max_cnt * 100 if max_cnt > 0 else 0
+            color = rank_colors[i % len(rank_colors)]
+
+            rank_html += f'''
+            <div style="display: flex; align-items: center; margin-bottom: 10px; padding: 8px 12px; background: #FAFCFF; border-radius: 8px; border: 1px solid #E8ECF0;">
+                <div style="font-size: 1.2rem; width: 36px; text-align: center;">{medal[i]}</div>
+                <div style="width: 140px; font-weight: 600; color: #1A3A5C; font-size: 0.85rem;">{m} ({METHOD_LABELS[m]})</div>
+                <div style="flex: 1; margin: 0 12px;">
+                    <div style="background: #E8ECF0; border-radius: 6px; height: 24px; overflow: hidden;">
+                        <div style="background: {color}; height: 100%; width: {bar_width}%; border-radius: 6px; transition: width 0.3s;"></div>
+                    </div>
+                </div>
+                <div style="width: 80px; text-align: right; font-weight: 700; color: {color}; font-size: 0.95rem;">{cnt}개</div>
+                <div style="width: 60px; text-align: right; color: #95A5A6; font-size: 0.8rem;">{pct:.1f}%</div>
+            </div>'''
+
+        rank_html += '</div>'
+        st.markdown(rank_html, unsafe_allow_html=True)
 
         st.markdown("---")
 
