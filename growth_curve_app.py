@@ -347,7 +347,8 @@ def main():
                         {method} <span style="font-size: 0.75rem; color: #5D6D7E; font-weight: 600;">({METHOD_LABELS[method]})</span> {badge}
                     </div>
                     <div style="font-size: 1.6rem; font-weight: bold; color: #1A3A5C;">{avg_abs_err:.2f}%</div>
-                    <div style="font-size: 0.7rem; color: #95A5A6; margin-bottom: 8px;">트리밍 평균 오차율</div>
+                    <div style="font-size: 0.7rem; color: #95A5A6; margin-bottom: 4px;">트리밍 평균 오차율</div>
+                    <div style="font-size: 0.8rem; color: #7F8C8D;">단순평균: {np.mean(errs):.2f}%</div>
                     <div style="display: flex; justify-content: space-around; margin-top: 8px;">
                         <div>
                             <div style="font-size: 0.85rem; font-weight: 600; color: {bias_color};">{bias_sign}{bias:.1f}%</div>
@@ -384,14 +385,26 @@ def main():
         # 매장별 최적 방식 카운트
         st.markdown("---")
         st.subheader("🏆 방식별 최적 매장 수 랭킹")
-        best_count = {m: 0 for m in ALL_METHODS}
-        store_best_method = {}  # 매장별 최적 방식 저장
 
-        # 모든 매장에 대해 6가지 방식 중 절대 오차율이 가장 작은 것 선택
+        # 비교할 방식 선택
+        compare_methods = st.multiselect(
+            "비교할 방식 선택",
+            ALL_METHODS,
+            default=ALL_METHODS,
+            key="rank_methods"
+        )
+
+        if not compare_methods:
+            compare_methods = ALL_METHODS
+
+        best_count = {m: 0 for m in compare_methods}
+        store_best_method = {}
+        store_best_error = {}
+
         for store in all_stores:
             min_err = None
             min_method = None
-            for method in ALL_METHODS:
+            for method in compare_methods:
                 result = validate_store(store, curve_index, method)
                 if result is not None:
                     abs_err = abs(result['avg_error'])
@@ -401,6 +414,7 @@ def main():
             if min_method is not None:
                 best_count[min_method] += 1
                 store_best_method[store['name']] = min_method
+                store_best_error[store['name']] = min_err
 
         # 랭킹 표시 (많은 순) — HTML 바 차트
         ranked = sorted(best_count.items(), key=lambda x: x[1], reverse=True)
@@ -432,6 +446,30 @@ def main():
         rank_html += '</div>'
         st.markdown(rank_html, unsafe_allow_html=True)
 
+        # 방식별 매장 목록 보기
+        show_method = st.selectbox(
+            "매장 목록 보기", ['선택하세요'] + [f"{m} ({METHOD_LABELS[m]})" for m in compare_methods],
+            key="show_rank_stores"
+        )
+        if show_method != '선택하세요':
+            selected_m = show_method.split(' ')[0]
+            method_stores = [
+                (name, err) for name, (method, err)
+                in zip(store_best_method.keys(),
+                       zip(store_best_method.values(), store_best_error.values()))
+                if method == selected_m
+            ]
+            method_stores.sort(key=lambda x: x[1])
+
+            if method_stores:
+                rank_store_df = pd.DataFrame([{
+                    '매장명': name,
+                    '|오차율|': f"{err:.2f}%"
+                } for name, err in method_stores])
+                st.dataframe(rank_store_df, use_container_width=True, hide_index=True)
+            else:
+                st.info("해당 방식이 최적인 매장이 없습니다.")
+
         st.markdown("---")
 
         # 선택된 방식 상세 테이블
@@ -441,8 +479,8 @@ def main():
         if results:
             df = pd.DataFrame([{
                 '매장명': r['name'],
-                '기준매출': f"{r['base_revenue']:,.0f}",
-                '실제평균(m4-9)': f"{np.mean(r['actual']):,.0f}",
+                '실제 기준 매출(오픈4~9개월 평균)=100': f"{np.mean(r['actual']):,.0f}",
+                '예측 기준 매출': f"{r['base_revenue']:,.0f}",
                 '오차(액수)': f"{r['base_revenue'] - np.mean(r['actual']):+,.0f}",
                 '오차율': f"{r['avg_error']:+.2f}%",
                 '최적방식': store_best_method.get(r['name'], '-')
@@ -558,7 +596,7 @@ def main():
                     <div style="background: {bg_color}; border: 2px solid {border_color}; border-radius: 8px; padding: 16px; text-align: center;">
                         <div style="font-size: 0.75rem; color: #5D6D7E; margin-bottom: 8px; font-weight: 600;">{r['method']} ({r['label']}){badge}</div>
                         <div style="font-size: 1.1rem; font-weight: bold; color: #1A3A5C;">{r['base']:,.0f}원</div>
-                        <div style="font-size: 0.7rem; color: #95A5A6; margin: 2px 0;">기준매출</div>
+                        <div style="font-size: 0.7rem; color: #95A5A6; margin: 2px 0;">예측 기준 매출</div>
                         <div style="font-size: 1rem; font-weight: bold; color: {err_color}; margin-top: 6px;">{sign}{r['error']:.2f}%</div>
                         <div style="font-size: 0.7rem; color: #95A5A6;">오차율</div>
                     </div>'''
