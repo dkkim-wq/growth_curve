@@ -321,9 +321,9 @@ def main():
                 return (tm, std, simple)
             best_overall = min(valid_methods, key=method_score)
 
-        # 요약 카드 (6개 방식 HTML 카드)
+        # 요약 카드 (7개 방식 HTML 카드: 3+4 배치)
         summary_html = '<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 1rem 0;">'
-        for method in ALL_METHODS:
+        for method in ['A', 'B', 'C']:
             errs = [abs(r['avg_error']) for r in results_all[method]]
             if errs:
                 avg_abs_err = trimmed_mean(errs)
@@ -378,6 +378,67 @@ def main():
             else:
                 summary_html += f'''
                 <div style="background: #F8F9FA; border: 1px solid #DEE2E6; border-radius: 10px; padding: 18px; text-align: center; opacity: 0.6;">
+                    <div style="font-size: 0.8rem; color: #6C757D; font-weight: 600;">{method} ({METHOD_LABELS[method]})</div>
+                    <div style="font-size: 1rem; color: #ADB5BD; margin-top: 10px;">데이터 없음</div>
+                </div>'''
+
+        summary_html += '</div>'
+        # 복합 방식 (4열)
+        summary_html += '<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 0.5rem 0 1rem 0;">'
+        for method in ['AB', 'AC', 'BC', 'ABC']:
+            errs = [abs(r['avg_error']) for r in results_all[method]]
+            if errs:
+                avg_abs_err = trimmed_mean(errs)
+                std_err = np.std(errs)
+                bias = np.mean([r['avg_error'] for r in results_all[method]])
+                n_stores = len(errs)
+
+                if method == best_overall:
+                    border_color = '#2ECC71'
+                    bg_color = '#EAFAF1'
+                    badge = '<span style="background: #2ECC71; color: white; font-size: 0.6rem; padding: 2px 8px; border-radius: 10px;">★ 최적</span>'
+                elif avg_abs_err <= 12:
+                    border_color = '#3498DB'
+                    bg_color = '#EBF5FB'
+                    badge = ''
+                elif avg_abs_err <= 18:
+                    border_color = '#F39C12'
+                    bg_color = '#FEF9E7'
+                    badge = ''
+                else:
+                    border_color = '#E74C3C'
+                    bg_color = '#FDEDEC'
+                    badge = ''
+
+                bias_color = '#E74C3C' if bias > 0 else '#2471A3'
+                bias_sign = '+' if bias > 0 else ''
+
+                summary_html += f'''
+                <div style="background: {bg_color}; border: 2px solid {border_color}; border-radius: 10px; padding: 16px; text-align: center;">
+                    <div style="font-size: 1rem; color: #1A3A5C; font-weight: 800; margin-bottom: 8px;">
+                        {method} <span style="font-size: 0.7rem; color: #5D6D7E; font-weight: 600;">({METHOD_LABELS[method]})</span> {badge}
+                    </div>
+                    <div style="font-size: 1.4rem; font-weight: bold; color: #1A3A5C;">{avg_abs_err:.2f}%</div>
+                    <div style="font-size: 0.65rem; color: #95A5A6; margin-bottom: 3px;">트리밍 평균 오차율</div>
+                    <div style="font-size: 0.75rem; color: #7F8C8D;">단순평균: {np.mean(errs):.2f}%</div>
+                    <div style="display: flex; justify-content: space-around; margin-top: 6px;">
+                        <div>
+                            <div style="font-size: 0.8rem; font-weight: 600; color: {bias_color};">{bias_sign}{bias:.1f}%</div>
+                            <div style="font-size: 0.55rem; color: #ADB5BD;">편향</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.8rem; font-weight: 600; color: #5D6D7E;">±{std_err:.1f}%</div>
+                            <div style="font-size: 0.55rem; color: #ADB5BD;">표준편차</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.8rem; font-weight: 600; color: #5D6D7E;">{n_stores}개</div>
+                            <div style="font-size: 0.55rem; color: #ADB5BD;">매장</div>
+                        </div>
+                    </div>
+                </div>'''
+            else:
+                summary_html += f'''
+                <div style="background: #F8F9FA; border: 1px solid #DEE2E6; border-radius: 10px; padding: 16px; text-align: center; opacity: 0.6;">
                     <div style="font-size: 0.8rem; color: #6C757D; font-weight: 600;">{method} ({METHOD_LABELS[method]})</div>
                     <div style="font-size: 1rem; color: #ADB5BD; margin-top: 10px;">데이터 없음</div>
                 </div>'''
@@ -573,9 +634,9 @@ def main():
             available = [r for r in method_results if r['available']]
             best_method = min(available, key=lambda x: abs(x['error']))['method'] if available else None
 
-            # HTML 카드 그리드
+            # HTML 카드 그리드 (3+4 배치)
             cards_html = '<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 1rem 0;">'
-            for r in method_results:
+            for r in [mr for mr in method_results if mr['method'] in ('A', 'B', 'C')]:
                 if not r['available']:
                     cards_html += f'''
                     <div style="background: #F8F9FA; border: 1px solid #DEE2E6; border-radius: 8px; padding: 16px; text-align: center; opacity: 0.6;">
@@ -612,6 +673,47 @@ def main():
                         <div style="font-size: 0.7rem; color: #95A5A6; margin: 2px 0;">예측 기준 매출</div>
                         <div style="font-size: 1rem; font-weight: bold; color: {err_color}; margin-top: 6px;">{sign}{r['error']:.2f}%</div>
                         <div style="font-size: 0.7rem; color: #95A5A6;">오차율</div>
+                    </div>'''
+
+            cards_html += '</div>'
+            # 복합 방식 (4열)
+            cards_html += '<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 0.5rem 0 1rem 0;">'
+            for r in [mr for mr in method_results if mr['method'] in ('AB', 'AC', 'BC', 'ABC')]:
+                if not r['available']:
+                    cards_html += f'''
+                    <div style="background: #F8F9FA; border: 1px solid #DEE2E6; border-radius: 8px; padding: 14px; text-align: center; opacity: 0.6;">
+                        <div style="font-size: 0.75rem; color: #6C757D; margin-bottom: 4px;">{r['method']} ({r['label']})</div>
+                        <div style="font-size: 0.9rem; color: #ADB5BD;">데이터 부족</div>
+                    </div>'''
+                else:
+                    abs_err = abs(r['error'])
+                    if r['method'] == best_method:
+                        border_color = '#2ECC71'
+                        bg_color = '#EAFAF1'
+                        badge = '<span style="background: #2ECC71; color: white; font-size: 0.65rem; padding: 2px 6px; border-radius: 10px; margin-left: 4px;">최적</span>'
+                    elif abs_err <= 10:
+                        border_color = '#3498DB'
+                        bg_color = '#EBF5FB'
+                        badge = ''
+                    elif abs_err <= 20:
+                        border_color = '#F39C12'
+                        bg_color = '#FEF9E7'
+                        badge = ''
+                    else:
+                        border_color = '#E74C3C'
+                        bg_color = '#FDEDEC'
+                        badge = ''
+
+                    err_color = '#E74C3C' if r['error'] > 0 else '#2471A3'
+                    sign = '+' if r['error'] > 0 else ''
+
+                    cards_html += f'''
+                    <div style="background: {bg_color}; border: 2px solid {border_color}; border-radius: 8px; padding: 14px; text-align: center;">
+                        <div style="font-size: 0.7rem; color: #5D6D7E; margin-bottom: 6px; font-weight: 600;">{r['method']} ({r['label']}){badge}</div>
+                        <div style="font-size: 1rem; font-weight: bold; color: #1A3A5C;">{r['base']:,.0f}원</div>
+                        <div style="font-size: 0.65rem; color: #95A5A6; margin: 2px 0;">예측 기준 매출</div>
+                        <div style="font-size: 0.9rem; font-weight: bold; color: {err_color}; margin-top: 4px;">{sign}{r['error']:.2f}%</div>
+                        <div style="font-size: 0.65rem; color: #95A5A6;">오차율</div>
                     </div>'''
 
             cards_html += '</div>'
