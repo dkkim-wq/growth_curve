@@ -557,7 +557,7 @@ def main():
             min_raw_err = None
             for method in compare_methods:
                 result = validate_store(store, curve_index, method)
-                if result is not None:
+                if result is not None and result['avg_error'] is not None:
                     abs_err = abs(result['avg_error'])
                     if min_err is None or abs_err < min_err:
                         min_err = abs_err
