@@ -267,9 +267,9 @@ def main():
         )
 
     # 탭 구성
-    tab1, tab2, tab3, tab4 = st.tabs([
+    tab1, tab2, tab4 = st.tabs([
         "📊 전체 검증 결과", "🔍 개별 매장 조회",
-        "📈 성장곡선 차트", "➕ 매장 데이터 추가"
+        "➕ 매장 데이터 추가"
     ])
 
     # ═══════════════════════════════════════════════════════════════
@@ -494,7 +494,7 @@ def main():
             sample_result = validate_store(store, curve_index, 'A')
             if sample_result:
                 actual_avg = np.mean(sample_result['actual'])
-                st.markdown(f"**실제평균(m4-9): :blue[{actual_avg:,.0f}원]**")
+                st.markdown(f"**실제 기준 매출(오픈4~9개월 평균)=100 : :blue[{actual_avg:,.0f}원]**")
 
             # 6가지 방식을 HTML 카드 형식으로
             method_results = []
@@ -574,8 +574,8 @@ def main():
 
                 detail_df = pd.DataFrame({
                     '월차': [f'm{i}' for i in range(4, 10)],
-                    '예측매출': [f"{p:,.0f}" for p in result['predicted']],
-                    '실제매출': [f"{a:,.0f}" for a in result['actual']],
+                    '실제 매출': [f"{a:,.0f}" for a in result['actual']],
+                    '예측 매출': [f"{p:,.0f}" for p in result['predicted']],
                     '오차율(%)': [f"{e:+.1f}%" for e in result['errors']]
                 })
                 st.dataframe(detail_df, use_container_width=True, hide_index=True)
@@ -592,7 +592,7 @@ def main():
                     name='예측매출', marker_color='#E74C3C', opacity=0.7
                 ))
                 fig.update_layout(
-                    title=f"{selected_store_name} — m4~m9 예측 vs 실제",
+                    title=f"{selected_store_name} — 실제 vs 예측",
                     xaxis_title="월차", yaxis_title="매출 (원)",
                     barmode='group', template="plotly_white",
                     height=400
@@ -628,7 +628,7 @@ def main():
                     fig2.add_trace(go.Scatter(
                         x=pred_months, y=pred_vals,
                         mode='lines',
-                        name='성장곡선 예측',
+                        name='예측 매출',
                         line=dict(color='#E74C3C', width=2, dash='dash')
                     ))
 
@@ -638,81 +638,6 @@ def main():
                     template="plotly_white", height=450
                 )
                 st.plotly_chart(fig2, use_container_width=True)
-
-    # ═══════════════════════════════════════════════════════════════
-    # 탭 3: 성장곡선 차트
-    # ═══════════════════════════════════════════════════════════════
-    with tab3:
-        st.subheader("📈 성장곡선 지수 시각화")
-
-        # 곡선지수 차트
-        months_sorted = sorted(curve_index.keys())
-        values_sorted = [curve_index[m] for m in months_sorted]
-
-        fig_curve = go.Figure()
-        fig_curve.add_trace(go.Scatter(
-            x=[f'm{m}' for m in months_sorted],
-            y=values_sorted,
-            mode='lines+markers',
-            name='가중평균 곡선지수',
-            line=dict(color='#1A3A5C', width=3),
-            marker=dict(size=6)
-        ))
-        fig_curve.add_hline(y=100, line_dash="dash",
-                            line_color="red", opacity=0.5,
-                            annotation_text="100% (기준)")
-        fig_curve.update_layout(
-            title="월차별 성장곡선 지수 (가중평균)",
-            xaxis_title="월차",
-            yaxis_title="곡선지수 (%)",
-            template="plotly_white",
-            height=450
-        )
-        st.plotly_chart(fig_curve, use_container_width=True)
-
-        # 곡선지수 데이터 테이블
-        with st.expander("📋 곡선지수 데이터 보기"):
-            ci_df = pd.DataFrame({
-                '월차': [f'm{m}' for m in months_sorted],
-                '곡선지수(%)': [f"{v:.2f}" for v in values_sorted]
-            })
-            st.dataframe(ci_df, use_container_width=True, hide_index=True)
-
-        st.markdown("---")
-        st.subheader("🏪 다중 매장 성장곡선 비교")
-
-        # 매장 다중 선택
-        compare_stores = st.multiselect(
-            "비교할 매장 선택 (최대 5개)",
-            [s['name'] for s in all_stores],
-            max_selections=5
-        )
-
-        if compare_stores:
-            fig_compare = go.Figure()
-            colors = ['#1A3A5C', '#E74C3C', '#2ECC71', '#9B59B6', '#F39C12']
-
-            for idx, store_name in enumerate(compare_stores):
-                store = next(s for s in all_stores if s['name'] == store_name)
-                sales = store['sales']
-                valid = [(i, s) for i, s in enumerate(sales)
-                         if s is not None and s > 0]
-                if valid:
-                    fig_compare.add_trace(go.Scatter(
-                        x=[f'm{i}' for i, _ in valid],
-                        y=[s for _, s in valid],
-                        mode='lines+markers',
-                        name=store_name,
-                        line=dict(color=colors[idx % len(colors)], width=2),
-                        marker=dict(size=6)
-                    ))
-
-            fig_compare.update_layout(
-                title="매장별 매출 추이 비교",
-                xaxis_title="월차", yaxis_title="매출 (원)",
-                template="plotly_white", height=500
-            )
-            st.plotly_chart(fig_compare, use_container_width=True)
 
     # ═══════════════════════════════════════════════════════════════
     # 탭 4: 매장 데이터 추가
