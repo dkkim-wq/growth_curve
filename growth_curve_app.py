@@ -824,7 +824,7 @@ def main():
                 st.markdown(f"#### 방식 {selected_method} 상세")
 
                 detail_df = pd.DataFrame({
-                    '월차': [f'm{i}' for i in range(4, 10)],
+                    '월차': [f'm{i} ({curve_index.get(i, 0):.1f}%)' for i in range(4, 10)],
                     '실제 매출': [f"{a:,.0f}" for a in result['actual']],
                     '예측 매출': [f"{p:,.0f}" for p in result['predicted']],
                     '오차율(%)': [f"{e:+.1f}%" for e in result['errors']]
@@ -874,7 +874,7 @@ def main():
 
                 if detail_months:
                     detail_df = pd.DataFrame({
-                        '월차': detail_months,
+                        '월차': [f'{m} ({curve_index.get(int(m[1:]), 0):.1f}%)' for m in detail_months],
                         '실제 매출': [f"{a:,.0f}" for a in detail_actual],
                         '예측 매출': [f"{p:,.0f}" for p in detail_predicted],
                         '오차율(%)': [f"{e:+.1f}%" for e in detail_errors]
