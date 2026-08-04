@@ -189,8 +189,6 @@ def load_excel_data():
 def get_base_revenue(store, curve_index, method):
     """단일 방식(A/B/C)의 기준매출 계산. 실패 시 None 반환."""
     sales = store['sales']
-    if len(sales) < 10:
-        return None
 
     start_m = {'A': 1, 'B': 2, 'C': 3}[method]
     end_m = 3
@@ -209,6 +207,16 @@ def get_base_revenue(store, curve_index, method):
     return np.mean(base_estimates)
 
 
+def get_store_max_month(store):
+    """매장의 최대 유효 월차 반환 (0-indexed)"""
+    sales = store['sales']
+    max_m = 0
+    for i, s in enumerate(sales):
+        if s is not None and s > 0:
+            max_m = i
+    return max_m
+
+
 # 전체 방식 목록
 ALL_METHODS = ['A', 'B', 'C', 'AB', 'AC', 'BC', 'ABC']
 METHOD_LABELS = {
@@ -219,15 +227,10 @@ METHOD_LABELS = {
 
 def validate_store(store, curve_index, method='A'):
     """
-    method: 'A','B','C' = 단일, 'AB','BC','ABC' = 복합(기준매출 평균)
+    method: 'A','B','C' = 단일, 'AB','AC','BC','ABC' = 복합(기준매출 평균)
+    m4~m9 데이터가 없으면 기준매출만 반환 (avg_error=None)
     """
     sales = store['sales']
-    if len(sales) < 10:
-        return None
-
-    actual_m4_m9 = sales[4:10]
-    if any(v is None or v <= 0 for v in actual_m4_m9):
-        return None
 
     # 기준매출 계산
     if method in ('A', 'B', 'C'):
@@ -263,31 +266,37 @@ def validate_store(store, curve_index, method='A'):
     if base_revenue is None:
         return None
 
-    # m4~m9 예측
-    predicted = []
-    for m in range(4, 10):
-        if m in curve_index:
-            pred = base_revenue * (curve_index[m] / 100)
-            predicted.append(pred)
-        else:
-            return None
+    # m4~m9 실제 매출 확인
+    if len(sales) >= 10:
+        actual_m4_m9 = sales[4:10]
+        if all(v is not None and v > 0 for v in actual_m4_m9):
+            predicted = []
+            for m in range(4, 10):
+                if m in curve_index:
+                    predicted.append(base_revenue * (curve_index[m] / 100))
+                else:
+                    predicted = None
+                    break
 
-    # 월별 오차율 (부호 포함)
-    errors = []
-    for pred, actual in zip(predicted, actual_m4_m9):
-        error_pct = (pred - actual) / actual * 100
-        errors.append(error_pct)
+            if predicted:
+                errors = [(p - a) / a * 100 for p, a in zip(predicted, actual_m4_m9)]
+                actual_avg = np.mean(actual_m4_m9)
+                avg_error = (base_revenue - actual_avg) / actual_avg * 100
+                return {
+                    'base_revenue': base_revenue,
+                    'predicted': predicted,
+                    'actual': actual_m4_m9,
+                    'errors': errors,
+                    'avg_error': avg_error
+                }
 
-    # 오차율: 기준매출 vs 실제평균(m4~9)
-    actual_avg = np.mean(actual_m4_m9)
-    avg_error = (base_revenue - actual_avg) / actual_avg * 100
-
+    # m4~m9 부족 → 기준매출만 반환
     return {
         'base_revenue': base_revenue,
-        'predicted': predicted,
-        'actual': actual_m4_m9,
-        'errors': errors,
-        'avg_error': avg_error
+        'predicted': None,
+        'actual': None,
+        'errors': None,
+        'avg_error': None
     }
 
 
@@ -359,7 +368,7 @@ def main():
             results_all[method] = []
             for store in all_stores:
                 result = validate_store(store, curve_index, method)
-                if result is not None:
+                if result is not None and result['avg_error'] is not None:
                     results_all[method].append({
                         'name': store['name'], **result
                     })
@@ -671,23 +680,28 @@ def main():
             # 6가지 방식 결과
             st.markdown(f"### 📌 {selected_store_name}")
 
+            # 데이터 월차 정보 표시
+            max_month = get_store_max_month(store)
+            st.markdown(f"**데이터: m0 ~ m{max_month} ({max_month+1}개월)**")
+
             # 실제평균 한 번만 표시
             sample_result = validate_store(store, curve_index, 'A')
-            if sample_result:
+            if sample_result and sample_result['actual'] is not None:
                 actual_avg = np.mean(sample_result['actual'])
                 st.markdown(f"**실제 기준 매출(오픈4~9개월 평균)=100 : :blue[{actual_avg:,.0f}원]**")
+            elif max_month < 9:
+                st.caption("⚠️ m9까지 데이터가 없어 오차율 검증 불가, 예측 기준 매출만 표시합니다.")
 
             # 6가지 방식을 HTML 카드 형식으로
             method_results = []
             for method in ALL_METHODS:
                 result = validate_store(store, curve_index, method)
                 if result:
-                    err = result['avg_error']
                     method_results.append({
                         'method': method,
                         'label': METHOD_LABELS[method],
                         'base': result['base_revenue'],
-                        'error': err,
+                        'error': result['avg_error'],
                         'available': True
                     })
                 else:
@@ -695,13 +709,14 @@ def main():
                         'method': method,
                         'label': METHOD_LABELS[method],
                         'base': 0,
-                        'error': 0,
+                        'error': None,
                         'available': False
                     })
 
-            # 최적 방식 찾기
+            # 최적 방식 찾기 (오차율이 있는 것 중에서)
+            available_with_error = [r for r in method_results if r['available'] and r['error'] is not None]
             available = [r for r in method_results if r['available']]
-            best_method = min(available, key=lambda x: abs(x['error']))['method'] if available else None
+            best_method = min(available_with_error, key=lambda x: abs(x['error']))['method'] if available_with_error else None
 
             # HTML 카드 그리드 (3+4 배치)
             cards_html = '<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 1rem 0;">'
@@ -714,34 +729,41 @@ def main():
                     </div>'''
                 else:
                     # 색상 결정
-                    abs_err = abs(r['error'])
-                    if r['method'] == best_method:
+                    abs_err = abs(r['error']) if r['error'] is not None else None
+                    if r['method'] == best_method and abs_err is not None:
                         border_color = '#2ECC71'
                         bg_color = '#EAFAF1'
                         badge = '<span style="background: #2ECC71; color: white; font-size: 0.65rem; padding: 2px 6px; border-radius: 10px; margin-left: 4px;">최적</span>'
-                    elif abs_err <= 10:
+                    elif abs_err is not None and abs_err <= 10:
                         border_color = '#3498DB'
                         bg_color = '#EBF5FB'
                         badge = ''
-                    elif abs_err <= 20:
+                    elif abs_err is not None and abs_err <= 20:
                         border_color = '#F39C12'
                         bg_color = '#FEF9E7'
                         badge = ''
-                    else:
+                    elif abs_err is not None:
                         border_color = '#E74C3C'
                         bg_color = '#FDEDEC'
                         badge = ''
+                    else:
+                        border_color = '#95A5A6'
+                        bg_color = '#F8F9FA'
+                        badge = ''
 
-                    err_color = '#E74C3C' if r['error'] > 0 else '#2471A3'
-                    sign = '+' if r['error'] > 0 else ''
+                    if r['error'] is not None:
+                        err_color = '#E74C3C' if r['error'] > 0 else '#2471A3'
+                        sign = '+' if r['error'] > 0 else ''
+                        error_display = f'<div style="font-size: 1rem; font-weight: bold; color: {err_color}; margin-top: 6px;">{sign}{r["error"]:.2f}%</div><div style="font-size: 0.7rem; color: #95A5A6;">오차율</div>'
+                    else:
+                        error_display = '<div style="font-size: 0.8rem; color: #95A5A6; margin-top: 6px;">오차율 산정 불가</div>'
 
                     cards_html += f'''
                     <div style="background: {bg_color}; border: 2px solid {border_color}; border-radius: 8px; padding: 16px; text-align: center;">
                         <div style="font-size: 0.75rem; color: #5D6D7E; margin-bottom: 8px; font-weight: 600;">{r['method']} ({r['label']}){badge}</div>
                         <div style="font-size: 1.1rem; font-weight: bold; color: #1A3A5C;">{r['base']:,.0f}원</div>
                         <div style="font-size: 0.7rem; color: #95A5A6; margin: 2px 0;">예측 기준 매출</div>
-                        <div style="font-size: 1rem; font-weight: bold; color: {err_color}; margin-top: 6px;">{sign}{r['error']:.2f}%</div>
-                        <div style="font-size: 0.7rem; color: #95A5A6;">오차율</div>
+                        {error_display}
                     </div>'''
 
             cards_html += '</div>'
@@ -790,7 +812,7 @@ def main():
 
             # 선택 방식 상세
             result = validate_store(store, curve_index, selected_method)
-            if result:
+            if result and result['actual'] is not None:
                 st.markdown("---")
                 st.markdown(f"#### 방식 {selected_method} 상세")
 
