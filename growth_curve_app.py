@@ -309,12 +309,17 @@ def main():
                 trimmed = sorted_vals
             return np.mean(trimmed) if trimmed else np.mean(sorted_vals)
 
-        # 최적 방식 찾기
+        # 최적 방식 찾기 (트리밍평균 → 표준편차 → 단순평균 순으로 비교)
         valid_methods = [m for m in ALL_METHODS if results_all[m]]
         best_overall = None
         if valid_methods:
-            best_overall = min(valid_methods,
-                               key=lambda m: trimmed_mean([abs(r['avg_error']) for r in results_all[m]]))
+            def method_score(m):
+                errs = [abs(r['avg_error']) for r in results_all[m]]
+                tm = round(trimmed_mean(errs), 2)
+                std = np.std(errs)
+                simple = np.mean(errs)
+                return (tm, std, simple)
+            best_overall = min(valid_methods, key=method_score)
 
         # 요약 카드 (6개 방식 HTML 카드)
         summary_html = '<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 1rem 0;">'
