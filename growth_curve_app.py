@@ -141,10 +141,10 @@ def get_base_revenue(store, curve_index, method):
 
 
 # 전체 방식 목록
-ALL_METHODS = ['A', 'B', 'C', 'AB', 'BC', 'ABC']
+ALL_METHODS = ['A', 'B', 'C', 'AB', 'AC', 'BC', 'ABC']
 METHOD_LABELS = {
     'A': 'm1,m2,m3 사용', 'B': 'm2,m3 사용', 'C': 'm3 사용',
-    'AB': 'A+B 평균', 'BC': 'B+C 평균', 'ABC': 'A+B+C 평균'
+    'AB': 'A+B 평균', 'AC': 'A+C 평균', 'BC': 'B+C 평균', 'ABC': 'A+B+C 평균'
 }
 
 
@@ -169,6 +169,12 @@ def validate_store(store, curve_index, method='A'):
         if a is None or b is None:
             return None
         base_revenue = (a + b) / 2
+    elif method == 'AC':
+        a = get_base_revenue(store, curve_index, 'A')
+        c = get_base_revenue(store, curve_index, 'C')
+        if a is None or c is None:
+            return None
+        base_revenue = (a + c) / 2
     elif method == 'BC':
         b = get_base_revenue(store, curve_index, 'B')
         c = get_base_revenue(store, curve_index, 'C')
