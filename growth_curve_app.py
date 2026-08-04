@@ -48,6 +48,7 @@ FILE_PATH = os.path.join(os.path.dirname(__file__),
                          "260618 경쟁사유무에 따른 성장곡선(공유)V3.xlsx")
 ADDED_STORES_PATH = os.path.join(os.path.dirname(__file__),
                                   "added_stores.json")
+TARGET_PATH = os.path.join(os.path.dirname(__file__), "타겟수요.xlsx")
 
 
 # ── 추가 매장 데이터 저장/로드 ────────────────────────────────────
@@ -61,6 +62,51 @@ def load_added_stores():
 def save_added_stores(stores_list):
     with open(ADDED_STORES_PATH, 'w', encoding='utf-8') as f:
         json.dump(stores_list, f, ensure_ascii=False, indent=2)
+
+
+# ── 타겟수요 로드 ────────────────────────────────────────────────
+@st.cache_data
+def load_target_data():
+    """타겟수요.xlsx에서 매장별 타겟수요를 로드"""
+    if not os.path.exists(TARGET_PATH):
+        return {}
+    wb = openpyxl.load_workbook(TARGET_PATH, data_only=True, read_only=True)
+    ws = wb.active
+    targets = {}
+    for row in ws.iter_rows(min_row=2, max_col=2, values_only=True):
+        name = row[0]
+        target = row[1]
+        if name and target:
+            targets[str(name).strip()] = float(target)
+    wb.close()
+    return targets
+
+
+# ── 회귀밴드 계산 ────────────────────────────────────────────────
+REGRESSION_COEF = 5908.958069
+REGRESSION_INTERCEPT = 2948754.80292545
+REGRESSION_BAND = 1300233.89703197
+
+
+def get_regression_band(target_demand):
+    """타겟수요로 예상매출/상한/하한 계산"""
+    pred = target_demand * REGRESSION_COEF + REGRESSION_INTERCEPT
+    return {
+        'predicted': pred,
+        'upper': pred + REGRESSION_BAND,
+        'lower': pred - REGRESSION_BAND
+    }
+
+
+def match_target(store_name, target_data):
+    """매장명에서 지점명을 추출하여 타겟수요 매칭 (#제거, 괄호 제거)"""
+    # (1143) #장항점 → 장항점
+    parts = store_name.split(') ')
+    short = parts[1].strip() if len(parts) > 1 else store_name.strip()
+    short = short.lstrip('#')
+    if short in target_data:
+        return target_data[short]
+    return None
 
 
 # ── 엑셀 데이터 로드 (캐시) ───────────────────────────────────────
@@ -101,8 +147,24 @@ def load_excel_data():
 
     # 매장별로 개점일 기준 월차(m0, m1, ...) 순서로 매출 정렬
     stores = []
+    # 장항점 통합: (1009)#진시스장항점, (1143)#진시스장항점, (1143)#장항점 → 장항점
+    janghang_keys = ['(1009) #진시스장항점', '(1143) #진시스장항점', '(1143) #장항점']
+    janghang_merged = {'open_date': None, 'monthly': {}}
+    # 트리하우스 제외
+    exclude_keys = ['(0008) 트리하우스점']
+
     for name, data in store_data.items():
         if not data['monthly'] or not data['open_date']:
+            continue
+        if name in exclude_keys:
+            continue
+        if name in janghang_keys:
+            # 장항점 데이터 합치기 (날짜 중복 시 덮어쓰기)
+            if janghang_merged['open_date'] is None:
+                janghang_merged['open_date'] = data['open_date']
+            elif data['open_date'] < janghang_merged['open_date']:
+                janghang_merged['open_date'] = data['open_date']
+            janghang_merged['monthly'].update(data['monthly'])
             continue
 
         # 날짜순 정렬
@@ -111,6 +173,13 @@ def load_excel_data():
 
         if len(sales_list) >= 4:  # 최소 데이터 필요
             stores.append({'name': name, 'sales': sales_list})
+
+    # 장항점 통합 데이터 추가
+    if janghang_merged['monthly']:
+        sorted_months = sorted(janghang_merged['monthly'].keys())
+        sales_list = [janghang_merged['monthly'][m] for m in sorted_months]
+        if len(sales_list) >= 4:
+            stores.append({'name': '(1143) #장항점', 'sales': sales_list})
 
     wb.close()
     return curve_index, stores
@@ -785,8 +854,28 @@ def main():
                         line=dict(color='#E74C3C', width=2, dash='dash')
                     ))
 
+                # 회귀밴드 (타겟수요 기반)
+                target_data = load_target_data()
+                target_val = match_target(selected_store_name, target_data)
+                if target_val:
+                    band = get_regression_band(target_val)
+                    fig2.add_hline(y=band['predicted'], line_dash="solid",
+                                   line_color="#2ECC71", opacity=0.8,
+                                   annotation_text=f"예상매출 {band['predicted']:,.0f}")
+                    fig2.add_hline(y=band['upper'], line_dash="dash",
+                                   line_color="#3498DB", opacity=0.6,
+                                   annotation_text=f"상한 {band['upper']:,.0f}")
+                    fig2.add_hline(y=band['lower'], line_dash="dash",
+                                   line_color="#E74C3C", opacity=0.6,
+                                   annotation_text=f"하한 {band['lower']:,.0f}")
+                    # 밴드 영역 음영
+                    fig2.add_hrect(y0=band['lower'], y1=band['upper'],
+                                   fillcolor="#2ECC71", opacity=0.07,
+                                   line_width=0)
+
                 fig2.update_layout(
-                    title=f"{selected_store_name} — 월별 매출 추이",
+                    title=f"{selected_store_name} — 월별 매출 추이"
+                          + (f" (타겟수요: {int(target_val)})" if target_val else ""),
                     xaxis_title="월차", yaxis_title="매출 (원)",
                     template="plotly_white", height=450
                 )
