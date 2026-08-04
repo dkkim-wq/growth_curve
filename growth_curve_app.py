@@ -850,6 +850,55 @@ def main():
                 )
                 st.plotly_chart(fig, use_container_width=True)
 
+            elif result and result['base_revenue'] is not None:
+                # m4~m9 부족하지만 기준매출은 있는 경우: 있는 데이터만 비교
+                st.markdown("---")
+                st.markdown(f"#### 방식 {selected_method} 상세 (보유 데이터 기준)")
+                sales = store['sales']
+                max_m = get_store_max_month(store)
+
+                # 보유한 월차 중 m1 이후로 예측 가능한 범위
+                detail_months = []
+                detail_actual = []
+                detail_predicted = []
+                detail_errors = []
+                for m in range(1, max_m + 1):
+                    if m < len(sales) and sales[m] is not None and sales[m] > 0 and m in curve_index:
+                        pred = result['base_revenue'] * (curve_index[m] / 100)
+                        actual = sales[m]
+                        err = (pred - actual) / actual * 100
+                        detail_months.append(f'm{m}')
+                        detail_actual.append(actual)
+                        detail_predicted.append(pred)
+                        detail_errors.append(err)
+
+                if detail_months:
+                    detail_df = pd.DataFrame({
+                        '월차': detail_months,
+                        '실제 매출': [f"{a:,.0f}" for a in detail_actual],
+                        '예측 매출': [f"{p:,.0f}" for p in detail_predicted],
+                        '오차율(%)': [f"{e:+.1f}%" for e in detail_errors]
+                    })
+                    st.dataframe(detail_df, use_container_width=True, hide_index=True)
+
+                    # 차트
+                    fig = go.Figure()
+                    fig.add_trace(go.Bar(
+                        x=detail_months, y=detail_actual,
+                        name='실제매출', marker_color='#2471A3'
+                    ))
+                    fig.add_trace(go.Bar(
+                        x=detail_months, y=detail_predicted,
+                        name='예측매출', marker_color='#E74C3C', opacity=0.7
+                    ))
+                    fig.update_layout(
+                        title=f"{selected_store_name} — 실제 vs 예측 (보유 데이터)",
+                        xaxis_title="월차", yaxis_title="매출 (원)",
+                        barmode='group', template="plotly_white",
+                        height=400
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+
             # 전체 매출 추이
             st.markdown("---")
             st.markdown("#### 📈 전체 월별 매출 추이")
