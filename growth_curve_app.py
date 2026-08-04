@@ -45,7 +45,7 @@ st.markdown("""
 
 # ── 파일 경로 ─────────────────────────────────────────────────────
 FILE_PATH = os.path.join(os.path.dirname(__file__),
-                         "260618 경쟁사유무에 따른 성장곡선(공유)V3.xlsx")
+                         "260618 경쟁사유무에 따른 성장곡선(공유)V4(시즌미반영성장곡선).xlsx")
 ADDED_STORES_PATH = os.path.join(os.path.dirname(__file__),
                                   "added_stores.json")
 TARGET_PATH = os.path.join(os.path.dirname(__file__), "타겟수요.xlsx")
@@ -117,8 +117,8 @@ def load_excel_data():
     """V3 엑셀에서 곡선지수와 매장 매출 데이터를 로드"""
     wb = openpyxl.load_workbook(FILE_PATH, data_only=True, read_only=True)
 
-    # 1. 가중평균 곡선지수 (6열: 가중평균(0~2))
-    ws_curve = wb['요약_성장곡선']
+    # 1. 가중평균 곡선지수 (요약_성장곡선(시즌미반영) 시트, 6열: 가중평균(0~2))
+    ws_curve = wb['요약_성장곡선(시즌미반영)']
     curve_index = {}
     for row in ws_curve.iter_rows(min_row=3, max_row=150, max_col=10,
                                    values_only=True):
