@@ -777,34 +777,41 @@ def main():
                         <div style="font-size: 0.9rem; color: #ADB5BD;">데이터 부족</div>
                     </div>'''
                 else:
-                    abs_err = abs(r['error'])
-                    if r['method'] == best_method:
+                    abs_err = abs(r['error']) if r['error'] is not None else None
+                    if r['method'] == best_method and abs_err is not None:
                         border_color = '#2ECC71'
                         bg_color = '#EAFAF1'
                         badge = '<span style="background: #2ECC71; color: white; font-size: 0.65rem; padding: 2px 6px; border-radius: 10px; margin-left: 4px;">최적</span>'
-                    elif abs_err <= 10:
+                    elif abs_err is not None and abs_err <= 10:
                         border_color = '#3498DB'
                         bg_color = '#EBF5FB'
                         badge = ''
-                    elif abs_err <= 20:
+                    elif abs_err is not None and abs_err <= 20:
                         border_color = '#F39C12'
                         bg_color = '#FEF9E7'
                         badge = ''
-                    else:
+                    elif abs_err is not None:
                         border_color = '#E74C3C'
                         bg_color = '#FDEDEC'
                         badge = ''
+                    else:
+                        border_color = '#95A5A6'
+                        bg_color = '#F8F9FA'
+                        badge = ''
 
-                    err_color = '#E74C3C' if r['error'] > 0 else '#2471A3'
-                    sign = '+' if r['error'] > 0 else ''
+                    if r['error'] is not None:
+                        err_color = '#E74C3C' if r['error'] > 0 else '#2471A3'
+                        sign = '+' if r['error'] > 0 else ''
+                        error_display = f'<div style="font-size: 0.9rem; font-weight: bold; color: {err_color}; margin-top: 4px;">{sign}{r["error"]:.2f}%</div><div style="font-size: 0.65rem; color: #95A5A6;">오차율</div>'
+                    else:
+                        error_display = '<div style="font-size: 0.75rem; color: #95A5A6; margin-top: 4px;">오차율 산정 불가</div>'
 
                     cards_html += f'''
                     <div style="background: {bg_color}; border: 2px solid {border_color}; border-radius: 8px; padding: 14px; text-align: center;">
                         <div style="font-size: 0.7rem; color: #5D6D7E; margin-bottom: 6px; font-weight: 600;">{r['method']} ({r['label']}){badge}</div>
                         <div style="font-size: 1rem; font-weight: bold; color: #1A3A5C;">{r['base']:,.0f}원</div>
                         <div style="font-size: 0.65rem; color: #95A5A6; margin: 2px 0;">예측 기준 매출</div>
-                        <div style="font-size: 0.9rem; font-weight: bold; color: {err_color}; margin-top: 4px;">{sign}{r['error']:.2f}%</div>
-                        <div style="font-size: 0.65rem; color: #95A5A6;">오차율</div>
+                        {error_display}
                     </div>'''
 
             cards_html += '</div>'
