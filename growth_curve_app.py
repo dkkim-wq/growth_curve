@@ -429,8 +429,8 @@ def main():
         total_stores = sum(best_count.values())
         max_cnt = ranked[0][1] if ranked else 1
 
-        rank_colors = ['#2ECC71', '#3498DB', '#9B59B6', '#F39C12', '#E74C3C', '#95A5A6']
-        medal = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣', '6️⃣']
+        rank_colors = ['#2ECC71', '#3498DB', '#9B59B6', '#F39C12', '#E74C3C', '#95A5A6', '#1ABC9C']
+        medal = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣', '6️⃣', '7️⃣']
 
         rank_html = '<div style="margin: 1rem 0;">'
         for i, (m, cnt) in enumerate(ranked):
