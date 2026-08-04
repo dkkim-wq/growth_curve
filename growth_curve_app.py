@@ -404,6 +404,7 @@ def main():
         for store in all_stores:
             min_err = None
             min_method = None
+            min_raw_err = None
             for method in compare_methods:
                 result = validate_store(store, curve_index, method)
                 if result is not None:
@@ -411,10 +412,11 @@ def main():
                     if min_err is None or abs_err < min_err:
                         min_err = abs_err
                         min_method = method
+                        min_raw_err = result['avg_error']
             if min_method is not None:
                 best_count[min_method] += 1
                 store_best_method[store['name']] = min_method
-                store_best_error[store['name']] = min_err
+                store_best_error[store['name']] = min_raw_err
 
         # 랭킹 표시 (많은 순) — HTML 바 차트
         ranked = sorted(best_count.items(), key=lambda x: x[1], reverse=True)
@@ -459,12 +461,12 @@ def main():
                        zip(store_best_method.values(), store_best_error.values()))
                 if method == selected_m
             ]
-            method_stores.sort(key=lambda x: x[1])
+            method_stores.sort(key=lambda x: abs(x[1]))
 
             if method_stores:
                 rank_store_df = pd.DataFrame([{
                     '매장명': name,
-                    '|오차율|': f"{err:.2f}%"
+                    '오차율': f"{err:+.2f}%"
                 } for name, err in method_stores])
                 st.dataframe(rank_store_df, use_container_width=True, hide_index=True)
             else:
