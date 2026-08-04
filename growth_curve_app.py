@@ -104,8 +104,10 @@ def match_target(store_name, target_data):
     parts = store_name.split(') ')
     short = parts[1].strip() if len(parts) > 1 else store_name.strip()
     short = short.lstrip('#')
-    if short in target_data:
-        return target_data[short]
+    # 타겟수요에서도 # 제거하고 비교
+    for key, val in target_data.items():
+        if key.lstrip('#') == short:
+            return val
     return None
 
 
