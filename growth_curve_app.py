@@ -1185,6 +1185,12 @@ def main():
                 )
                 if show_stores:
                     fig_ind = go.Figure()
+                    # 선택 매장 그룹 정보 표시
+                    group_info = ", ".join([
+                        f"{s['name'].split(') ')[1] if ')' in s['name'] else s['name']} (그룹{s['group']})"
+                        for s in filtered if s['name'] in show_stores
+                    ])
+                    st.caption(f"📌 {group_info}")
                     # 그룹 평균
                     fig_ind.add_trace(go.Scatter(
                         x=months_list, y=avgs,
