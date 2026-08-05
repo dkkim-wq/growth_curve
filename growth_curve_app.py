@@ -1085,7 +1085,7 @@ def main():
             wb = openpyxl.load_workbook(FILE_PATH, data_only=True, read_only=True)
             ws = wb['Calc_지수곡선(시즌미반영)']
             stores_curve = []
-            for row in ws.iter_rows(min_row=2, max_col=54, values_only=True):
+            for row in ws.iter_rows(min_row=2, values_only=True):
                 name = row[0]
                 group = str(row[3]).strip() if row[3] else None
                 if name is None or group is None or group == '3+':
@@ -1179,9 +1179,9 @@ def main():
                 st.markdown("---")
                 st.subheader("🏪 개별 매장 곡선지수")
                 show_stores = st.multiselect(
-                    "매장 선택 (최대 5개)",
+                    "매장 선택 (최대 10개)",
                     [s['name'] for s in filtered],
-                    max_selections=5, key="var_stores"
+                    max_selections=10, key="var_stores"
                 )
                 if show_stores:
                     fig_ind = go.Figure()
