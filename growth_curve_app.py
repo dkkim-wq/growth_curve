@@ -353,9 +353,9 @@ def main():
         )
 
     # 탭 구성
-    tab1, tab2, tab4 = st.tabs([
+    tab1, tab2, tab4, tab5 = st.tabs([
         "📊 전체 검증 결과", "🔍 개별 매장 조회",
-        "➕ 매장 데이터 추가"
+        "➕ 매장 데이터 추가", "📉 그룹별 분산 분석"
     ])
 
     # ═══════════════════════════════════════════════════════════════
@@ -1070,6 +1070,144 @@ def main():
                         st.rerun()
         else:
             st.info("추가된 매장이 없습니다.")
+
+    # ═══════════════════════════════════════════════════════════════
+    # 탭 5: 그룹별 분산 분석
+    # ═══════════════════════════════════════════════════════════════
+    with tab5:
+        st.subheader("📉 그룹별 곡선지수 분산 분석")
+        st.markdown("각 매장의 개별 곡선지수와 그룹 평균 곡선지수 간의 표준편차·분산을 분석합니다.")
+
+        # 데이터 로드
+        @st.cache_data
+        def load_store_curves():
+            """Calc_지수곡선(시즌미반영) 시트에서 매장별 곡선지수 로드"""
+            wb = openpyxl.load_workbook(FILE_PATH, data_only=True, read_only=True)
+            ws = wb['Calc_지수곡선(시즌미반영)']
+            stores_curve = []
+            for row in ws.iter_rows(min_row=2, max_col=54, values_only=True):
+                name = row[0]
+                group = str(row[3]).strip() if row[3] else None
+                if name is None or group is None or group == '3+':
+                    continue
+                # G열(인덱스6)부터 m1~m48
+                indices = []
+                for i in range(6, min(54, len(row))):
+                    val = row[i]
+                    indices.append(val if val is not None else None)
+                stores_curve.append({
+                    'name': str(name),
+                    'group': group,
+                    'indices': indices  # [m1, m2, ..., m48]
+                })
+            wb.close()
+            return stores_curve
+
+        stores_curve = load_store_curves()
+
+        # 그룹 선택
+        groups_available = sorted(set(s['group'] for s in stores_curve))
+        selected_group = st.selectbox("그룹 선택", ['전체(0~2)'] + groups_available, key="group_sel")
+
+        if selected_group == '전체(0~2)':
+            filtered = stores_curve
+        else:
+            filtered = [s for s in stores_curve if s['group'] == selected_group]
+
+        st.caption(f"대상 매장 수: {len(filtered)}개")
+
+        if filtered:
+            # 월차별 통계 계산
+            max_months = 48
+            stats_data = []
+            for m_idx in range(max_months):
+                month_values = []
+                for s in filtered:
+                    if m_idx < len(s['indices']) and s['indices'][m_idx] is not None:
+                        month_values.append(s['indices'][m_idx])
+
+                if len(month_values) >= 2:
+                    avg = np.mean(month_values)
+                    std = np.std(month_values, ddof=1)
+                    var = np.var(month_values, ddof=1)
+                    cv = (std / avg * 100) if avg != 0 else 0
+                    stats_data.append({
+                        '월차': f'm{m_idx + 1}',
+                        '매장수': len(month_values),
+                        '그룹평균': round(avg, 2),
+                        '표준편차': round(std, 2),
+                        '분산': round(var, 2),
+                        '변동계수(CV%)': round(cv, 2)
+                    })
+
+            if stats_data:
+                stats_df = pd.DataFrame(stats_data)
+                st.dataframe(stats_df, use_container_width=True, hide_index=True)
+
+                # 차트: 그룹 평균 ± 표준편차
+                fig_var = go.Figure()
+                months_list = [d['월차'] for d in stats_data]
+                avgs = [d['그룹평균'] for d in stats_data]
+                stds = [d['표준편차'] for d in stats_data]
+
+                fig_var.add_trace(go.Scatter(
+                    x=months_list, y=avgs,
+                    mode='lines+markers', name='그룹 평균',
+                    line=dict(color='#1A3A5C', width=2)
+                ))
+                fig_var.add_trace(go.Scatter(
+                    x=months_list, y=[a + s for a, s in zip(avgs, stds)],
+                    mode='lines', name='+1σ',
+                    line=dict(color='#3498DB', width=1, dash='dash')
+                ))
+                fig_var.add_trace(go.Scatter(
+                    x=months_list, y=[a - s for a, s in zip(avgs, stds)],
+                    mode='lines', name='-1σ',
+                    line=dict(color='#E74C3C', width=1, dash='dash'),
+                    fill='tonexty', fillcolor='rgba(52,152,219,0.1)'
+                ))
+                fig_var.add_hline(y=100, line_dash="dot", line_color="gray",
+                                  annotation_text="기준(100)")
+                fig_var.update_layout(
+                    title=f"그룹 {'전체(0~2)' if selected_group == '전체(0~2)' else selected_group} — 곡선지수 평균 ± 표준편차",
+                    xaxis_title="월차", yaxis_title="곡선지수(%)",
+                    template="plotly_white", height=450
+                )
+                st.plotly_chart(fig_var, use_container_width=True)
+
+                # 개별 매장 곡선 오버레이
+                st.markdown("---")
+                st.subheader("🏪 개별 매장 곡선지수")
+                show_stores = st.multiselect(
+                    "매장 선택 (최대 5개)",
+                    [s['name'] for s in filtered],
+                    max_selections=5, key="var_stores"
+                )
+                if show_stores:
+                    fig_ind = go.Figure()
+                    # 그룹 평균
+                    fig_ind.add_trace(go.Scatter(
+                        x=months_list, y=avgs,
+                        mode='lines', name='그룹 평균',
+                        line=dict(color='#95A5A6', width=3, dash='dot')
+                    ))
+                    colors = ['#1A3A5C', '#E74C3C', '#2ECC71', '#9B59B6', '#F39C12']
+                    for idx, sname in enumerate(show_stores):
+                        s = next(x for x in filtered if x['name'] == sname)
+                        vals = [v for v in s['indices'][:max_months] if v is not None]
+                        x_vals = [f'm{i+1}' for i in range(len(vals))]
+                        fig_ind.add_trace(go.Scatter(
+                            x=x_vals, y=vals,
+                            mode='lines+markers', name=sname,
+                            line=dict(color=colors[idx % len(colors)], width=2),
+                            marker=dict(size=5)
+                        ))
+                    fig_ind.update_layout(
+                        title="개별 매장 곡선지수 vs 그룹 평균",
+                        xaxis_title="월차", yaxis_title="곡선지수(%)",
+                        template="plotly_white", height=450
+                    )
+                    st.plotly_chart(fig_ind, use_container_width=True)
 
 
 if __name__ == "__main__":
