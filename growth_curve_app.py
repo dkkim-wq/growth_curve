@@ -223,57 +223,88 @@ def get_store_max_month(store):
 ALL_METHODS = ['A', 'B', 'C', 'AB', 'AC', 'BC', 'ABC']
 METHOD_LABELS = {
     'A': 'm1,m2,m3 사용', 'B': 'm2,m3 사용', 'C': 'm3 사용',
+    'D': 'm4 사용', 'E': 'm5 사용',
     'AB': 'A+B 평균', 'AC': 'A+C 평균', 'BC': 'B+C 평균', 'ABC': 'A+B+C 평균'
 }
 
 
-def validate_store(store, curve_index, method='A'):
+def validate_store(store, curve_index, method='A', version='v1'):
     """
-    method: 'A','B','C' = 단일, 'AB','AC','BC','ABC' = 복합(기준매출 평균)
-    m4~m9 데이터가 없으면 기준매출만 반환 (avg_error=None)
+    method: 'A','B','C','D','E' = 단일, 'AB','AC','BC','ABC' = 복합(기준매출 평균)
+    version: 'v1' = m1~m3 역산, m4~m9 검증
+             'v2' = m1~m4 역산, m5~m9 검증
+             'v3' = m1~m5 역산, m6~m9 검증
     """
     sales = store['sales']
 
+    # 버전별 설정
+    if version == 'v1':
+        end_m = 3
+        verify_start = 4
+        verify_end = 10
+    elif version == 'v2':
+        end_m = 4
+        verify_start = 5
+        verify_end = 10
+    elif version == 'v3':
+        end_m = 5
+        verify_start = 6
+        verify_end = 10
+    else:
+        end_m = 3
+        verify_start = 4
+        verify_end = 10
+
     # 기준매출 계산
-    if method in ('A', 'B', 'C'):
-        base_revenue = get_base_revenue(store, curve_index, method)
+    if method in ('A', 'B', 'C', 'D', 'E'):
+        start_m_map = {'A': 1, 'B': 2, 'C': 3, 'D': 4, 'E': 5}
+        start_m = start_m_map.get(method)
+        if start_m is None or start_m > end_m:
+            return None
+        base_estimates = []
+        for m in range(start_m, end_m + 1):
+            if m >= len(sales) or sales[m] is None or sales[m] <= 0:
+                continue
+            if m not in curve_index:
+                continue
+            base_estimates.append(sales[m] / (curve_index[m] / 100))
+        if not base_estimates:
+            return None
+        base_revenue = np.mean(base_estimates)
     elif method == 'AB':
-        a = get_base_revenue(store, curve_index, 'A')
-        b = get_base_revenue(store, curve_index, 'B')
+        a = _calc_base(store, curve_index, 'A', end_m)
+        b = _calc_base(store, curve_index, 'B', end_m)
         if a is None or b is None:
             return None
         base_revenue = (a + b) / 2
     elif method == 'AC':
-        a = get_base_revenue(store, curve_index, 'A')
-        c = get_base_revenue(store, curve_index, 'C')
+        a = _calc_base(store, curve_index, 'A', end_m)
+        c = _calc_base(store, curve_index, 'C', end_m)
         if a is None or c is None:
             return None
         base_revenue = (a + c) / 2
     elif method == 'BC':
-        b = get_base_revenue(store, curve_index, 'B')
-        c = get_base_revenue(store, curve_index, 'C')
+        b = _calc_base(store, curve_index, 'B', end_m)
+        c = _calc_base(store, curve_index, 'C', end_m)
         if b is None or c is None:
             return None
         base_revenue = (b + c) / 2
     elif method == 'ABC':
-        a = get_base_revenue(store, curve_index, 'A')
-        b = get_base_revenue(store, curve_index, 'B')
-        c = get_base_revenue(store, curve_index, 'C')
+        a = _calc_base(store, curve_index, 'A', end_m)
+        b = _calc_base(store, curve_index, 'B', end_m)
+        c = _calc_base(store, curve_index, 'C', end_m)
         if a is None or b is None or c is None:
             return None
         base_revenue = (a + b + c) / 3
     else:
         return None
 
-    if base_revenue is None:
-        return None
-
-    # m4~m9 실제 매출 확인
-    if len(sales) >= 10:
-        actual_m4_m9 = sales[4:10]
-        if all(v is not None and v > 0 for v in actual_m4_m9):
+    # 검증 구간 실제 매출 확인
+    if len(sales) >= verify_end:
+        actual_verify = sales[verify_start:verify_end]
+        if all(v is not None and v > 0 for v in actual_verify):
             predicted = []
-            for m in range(4, 10):
+            for m in range(verify_start, verify_end):
                 if m in curve_index:
                     predicted.append(base_revenue * (curve_index[m] / 100))
                 else:
@@ -281,25 +312,48 @@ def validate_store(store, curve_index, method='A'):
                     break
 
             if predicted:
-                errors = [(p - a) / a * 100 for p, a in zip(predicted, actual_m4_m9)]
-                actual_avg = np.mean(actual_m4_m9)
+                errors = [(p - a) / a * 100 for p, a in zip(predicted, actual_verify)]
+                actual_avg = np.mean(actual_verify)
                 avg_error = (base_revenue - actual_avg) / actual_avg * 100
                 return {
                     'base_revenue': base_revenue,
                     'predicted': predicted,
-                    'actual': actual_m4_m9,
+                    'actual': actual_verify,
                     'errors': errors,
-                    'avg_error': avg_error
+                    'avg_error': avg_error,
+                    'verify_start': verify_start,
+                    'verify_end': verify_end
                 }
 
-    # m4~m9 부족 → 기준매출만 반환
+    # 검증 데이터 부족 → 기준매출만 반환
     return {
         'base_revenue': base_revenue,
         'predicted': None,
         'actual': None,
         'errors': None,
-        'avg_error': None
+        'avg_error': None,
+        'verify_start': verify_start,
+        'verify_end': verify_end
     }
+
+
+def _calc_base(store, curve_index, method, end_m):
+    """복합 방식용 내부 기준매출 계산"""
+    sales = store['sales']
+    start_m_map = {'A': 1, 'B': 2, 'C': 3, 'D': 4, 'E': 5}
+    start_m = start_m_map.get(method)
+    if start_m is None or start_m > end_m:
+        return None
+    base_estimates = []
+    for m in range(start_m, end_m + 1):
+        if m >= len(sales) or sales[m] is None or sales[m] <= 0:
+            continue
+        if m not in curve_index:
+            continue
+        base_estimates.append(sales[m] / (curve_index[m] / 100))
+    if not base_estimates:
+        return None
+    return np.mean(base_estimates)
 
 
 # ── 전체 성장곡선 예측 (임의 개월까지) ────────────────────────────
@@ -364,12 +418,39 @@ def main():
     with tab1:
         st.subheader("🏪 전체 매장 검증 결과")
 
-        # 6가지 방식 비교
+        # 버전 선택
+        version_labels = {
+            'v1': 'V1: m1~m3 역산 → m4~m9 검증',
+            'v2': 'V2: m1~m4 역산 → m5~m9 검증',
+            'v3': 'V3: m1~m5 역산 → m6~m9 검증'
+        }
+        selected_version = st.radio(
+            "검증 버전 선택", ['v1', 'v2', 'v3'],
+            format_func=lambda x: version_labels[x],
+            horizontal=True, key="version_sel"
+        )
+
+        # 버전별 방식 목록
+        if selected_version == 'v1':
+            version_methods = ALL_METHODS  # A,B,C,AB,AC,BC,ABC
+        elif selected_version == 'v2':
+            version_methods = ['A', 'B', 'C', 'D']
+        else:  # v3
+            version_methods = ['A', 'B', 'C', 'D', 'E']
+
+        # 상세 표에 사용할 방식 선택
+        selected_method = st.selectbox(
+            "상세 결과 방식 선택", version_methods,
+            format_func=lambda x: f"{x}: {METHOD_LABELS[x]}",
+            key="detail_method_sel"
+        )
+
+        # 방식별 검증 실행
         results_all = {}
-        for method in ALL_METHODS:
+        for method in version_methods:
             results_all[method] = []
             for store in all_stores:
-                result = validate_store(store, curve_index, method)
+                result = validate_store(store, curve_index, method, selected_version)
                 if result is not None and result['avg_error'] is not None:
                     results_all[method].append({
                         'name': store['name'], **result
@@ -390,7 +471,7 @@ def main():
             return np.mean(trimmed) if trimmed else np.mean(sorted_vals)
 
         # 최적 방식 찾기 (트리밍평균 → 표준편차 → 단순평균 순으로 비교)
-        valid_methods = [m for m in ALL_METHODS if results_all[m]]
+        valid_methods = [m for m in version_methods if results_all.get(m)]
         best_overall = None
         if valid_methods:
             def method_score(m):
@@ -401,9 +482,22 @@ def main():
                 return (tm, std, simple)
             best_overall = min(valid_methods, key=method_score)
 
-        # 요약 카드 (7개 방식 HTML 카드: 3+4 배치)
-        summary_html = '<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 1rem 0;">'
-        for method in ['A', 'B', 'C']:
+        # 요약 카드
+        if selected_version == 'v1':
+            # 3+4 레이아웃
+            summary_html = '<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 1rem 0;">'
+            first_row = ['A', 'B', 'C']
+            second_row = ['AB', 'AC', 'BC', 'ABC']
+        elif selected_version == 'v2':
+            summary_html = '<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 1rem 0;">'
+            first_row = ['A', 'B', 'C', 'D']
+            second_row = []
+        else:  # v3
+            summary_html = '<div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin: 1rem 0;">'
+            first_row = ['A', 'B', 'C', 'D', 'E']
+            second_row = []
+
+        for method in first_row:
             errs = [abs(r['avg_error']) for r in results_all[method]]
             if errs:
                 avg_abs_err = trimmed_mean(errs)
@@ -463,37 +557,38 @@ def main():
                 </div>'''
 
         summary_html += '</div>'
-        # 복합 방식 (4열)
-        summary_html += '<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 0.5rem 0 1rem 0;">'
-        for method in ['AB', 'AC', 'BC', 'ABC']:
-            errs = [abs(r['avg_error']) for r in results_all[method]]
-            if errs:
-                avg_abs_err = trimmed_mean(errs)
-                std_err = np.std(errs)
-                bias = np.mean([r['avg_error'] for r in results_all[method]])
-                n_stores = len(errs)
+        # 복합 방식 (v1일 때만)
+        if second_row:
+            summary_html += '<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 0.5rem 0 1rem 0;">'
+            for method in second_row:
+                errs = [abs(r['avg_error']) for r in results_all[method]]
+                if errs:
+                    avg_abs_err = trimmed_mean(errs)
+                    std_err = np.std(errs)
+                    bias = np.mean([r['avg_error'] for r in results_all[method]])
+                    n_stores = len(errs)
 
-                if method == best_overall:
-                    border_color = '#2ECC71'
-                    bg_color = '#EAFAF1'
-                    badge = '<span style="background: #2ECC71; color: white; font-size: 0.6rem; padding: 2px 8px; border-radius: 10px;">★ 최적</span>'
-                elif avg_abs_err <= 12:
-                    border_color = '#3498DB'
-                    bg_color = '#EBF5FB'
-                    badge = ''
-                elif avg_abs_err <= 18:
-                    border_color = '#F39C12'
-                    bg_color = '#FEF9E7'
-                    badge = ''
-                else:
-                    border_color = '#E74C3C'
-                    bg_color = '#FDEDEC'
-                    badge = ''
+                    if method == best_overall:
+                        border_color = '#2ECC71'
+                        bg_color = '#EAFAF1'
+                        badge = '<span style="background: #2ECC71; color: white; font-size: 0.6rem; padding: 2px 8px; border-radius: 10px;">★ 최적</span>'
+                    elif avg_abs_err <= 12:
+                        border_color = '#3498DB'
+                        bg_color = '#EBF5FB'
+                        badge = ''
+                    elif avg_abs_err <= 18:
+                        border_color = '#F39C12'
+                        bg_color = '#FEF9E7'
+                        badge = ''
+                    else:
+                        border_color = '#E74C3C'
+                        bg_color = '#FDEDEC'
+                        badge = ''
 
-                bias_color = '#E74C3C' if bias > 0 else '#2471A3'
-                bias_sign = '+' if bias > 0 else ''
+                    bias_color = '#E74C3C' if bias > 0 else '#2471A3'
+                    bias_sign = '+' if bias > 0 else ''
 
-                summary_html += f'''
+                    summary_html += f'''
                 <div style="background: {bg_color}; border: 2px solid {border_color}; border-radius: 10px; padding: 16px; text-align: center;">
                     <div style="font-size: 1rem; color: #1A3A5C; font-weight: 800; margin-bottom: 8px;">
                         {method} <span style="font-size: 0.7rem; color: #5D6D7E; font-weight: 600;">({METHOD_LABELS[method]})</span> {badge}
@@ -516,14 +611,14 @@ def main():
                         </div>
                     </div>
                 </div>'''
-            else:
-                summary_html += f'''
+                else:
+                    summary_html += f'''
                 <div style="background: #F8F9FA; border: 1px solid #DEE2E6; border-radius: 10px; padding: 16px; text-align: center; opacity: 0.6;">
                     <div style="font-size: 0.8rem; color: #6C757D; font-weight: 600;">{method} ({METHOD_LABELS[method]})</div>
                     <div style="font-size: 1rem; color: #ADB5BD; margin-top: 10px;">데이터 없음</div>
                 </div>'''
 
-        summary_html += '</div>'
+            summary_html += '</div>'
         st.markdown(summary_html, unsafe_allow_html=True)
 
         # 최적 방식 배너
@@ -541,13 +636,13 @@ def main():
         # 비교할 방식 선택
         compare_methods = st.multiselect(
             "비교할 방식 선택",
-            ALL_METHODS,
-            default=ALL_METHODS,
+            version_methods,
+            default=version_methods,
             key="rank_methods"
         )
 
         if not compare_methods:
-            compare_methods = ALL_METHODS
+            compare_methods = version_methods
 
         best_count = {m: 0 for m in compare_methods}
         store_best_method = {}
@@ -558,7 +653,7 @@ def main():
             min_method = None
             min_raw_err = None
             for method in compare_methods:
-                result = validate_store(store, curve_index, method)
+                result = validate_store(store, curve_index, method, selected_version)
                 if result is not None and result['avg_error'] is not None:
                     abs_err = abs(result['avg_error'])
                     if min_err is None or abs_err < min_err:
@@ -628,7 +723,7 @@ def main():
 
         # 선택된 방식 상세 테이블
         st.subheader(f"📋 방식 {selected_method} 상세 결과")
-        results = results_all[selected_method]
+        results = results_all.get(selected_method, [])
 
         if results:
             df = pd.DataFrame([{
