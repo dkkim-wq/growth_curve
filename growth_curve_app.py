@@ -1307,13 +1307,17 @@ def main():
                 st.subheader("🏪 개별 매장 곡선지수")
                 show_stores = st.multiselect("매장 선택 (최대 10개)", [s['name'] for s in filtered], max_selections=10, key="var_stores")
 
-                # 기준선 토글
-                ref_options = st.multiselect(
-                    "기준선 표시",
-                    ['그룹0 평균', '그룹1 평균', '그룹2 평균', '가중평균(0~2)'],
-                    default=['가중평균(0~2)'],
-                    key="ref_lines"
-                )
+                # 기준선 토글 (체크박스)
+                st.markdown("**기준선 표시**")
+                ref_col1, ref_col2, ref_col3, ref_col4 = st.columns(4)
+                with ref_col1:
+                    show_g0 = st.checkbox("그룹0 평균", value=False, key="ref_g0")
+                with ref_col2:
+                    show_g1 = st.checkbox("그룹1 평균", value=False, key="ref_g1")
+                with ref_col3:
+                    show_g2 = st.checkbox("그룹2 평균", value=False, key="ref_g2")
+                with ref_col4:
+                    show_wavg = st.checkbox("가중평균(0~2)", value=True, key="ref_wavg")
 
                 # 그룹별 평균 계산
                 def calc_group_avgs(group_stores):
@@ -1327,19 +1331,19 @@ def main():
                 all_months = [f'm{m+1}' for m in range(max_months)]
                 fig_ind = go.Figure()
 
-                if '그룹0 평균' in ref_options:
+                if show_g0:
                     g0_avgs = calc_group_avgs(g0)
                     fig_ind.add_trace(go.Scatter(x=all_months, y=g0_avgs, mode='lines', name='그룹0 평균',
                         line=dict(color='rgba(41,128,185,0.5)', width=1.5, dash='dot'), hovertemplate='그룹0: %{y:.1f}<extra></extra>'))
-                if '그룹1 평균' in ref_options:
+                if show_g1:
                     g1_avgs = calc_group_avgs(g1)
                     fig_ind.add_trace(go.Scatter(x=all_months, y=g1_avgs, mode='lines', name='그룹1 평균',
                         line=dict(color='rgba(39,174,96,0.5)', width=1.5, dash='dot'), hovertemplate='그룹1: %{y:.1f}<extra></extra>'))
-                if '그룹2 평균' in ref_options:
+                if show_g2:
                     g2_avgs = calc_group_avgs(g2)
                     fig_ind.add_trace(go.Scatter(x=all_months, y=g2_avgs, mode='lines', name='그룹2 평균',
                         line=dict(color='rgba(243,156,18,0.5)', width=1.5, dash='dot'), hovertemplate='그룹2: %{y:.1f}<extra></extra>'))
-                if '가중평균(0~2)' in ref_options:
+                if show_wavg:
                     w_curve_y = [curve_index.get(m+1) for m in range(max_months)]
                     fig_ind.add_trace(go.Scatter(x=all_months, y=w_curve_y, mode='lines', name='가중평균(0~2)',
                         line=dict(color='rgba(142,68,173,0.7)', width=2.5, dash='dashdot'), hovertemplate='가중평균: %{y:.1f}<extra></extra>'))
