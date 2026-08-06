@@ -1198,32 +1198,32 @@ def main():
                 <div style="font-size: 0.8rem; color: #5D6D7E; font-weight: 600;">그룹 0 (경쟁 0)</div>
                 <div style="font-size: 2rem; font-weight: bold; color: #1A3A5C;">{cv_g0:.2f}%</div>
                 <div style="font-size: 0.65rem; color: #95A5A6; margin-bottom: 4px;">CV 가중평균</div>
-                <div style="font-size: 0.9rem; color: #5D6D7E;">σ {std_g0:.2f}</div>
+                <div style="font-size: 0.9rem; color: #5D6D7E;">표준편차 {std_g0:.2f}</div>
                 <div style="font-size: 0.6rem; color: #ADB5BD;">{len(g0)}개 매장</div>
             </div>
             <div style="background: #EAFAF1; border: 2px solid #2ECC71; border-radius: 10px; padding: 18px; text-align: center;">
                 <div style="font-size: 0.8rem; color: #5D6D7E; font-weight: 600;">그룹 1</div>
                 <div style="font-size: 2rem; font-weight: bold; color: #1E8449;">{cv_g1:.2f}%</div>
                 <div style="font-size: 0.65rem; color: #95A5A6; margin-bottom: 4px;">CV 가중평균</div>
-                <div style="font-size: 0.9rem; color: #5D6D7E;">σ {std_g1:.2f}</div>
+                <div style="font-size: 0.9rem; color: #5D6D7E;">표준편차 {std_g1:.2f}</div>
                 <div style="font-size: 0.6rem; color: #ADB5BD;">{len(g1)}개 매장</div>
             </div>
             <div style="background: #FEF9E7; border: 2px solid #F39C12; border-radius: 10px; padding: 18px; text-align: center;">
                 <div style="font-size: 0.8rem; color: #5D6D7E; font-weight: 600;">그룹 2</div>
                 <div style="font-size: 2rem; font-weight: bold; color: #D68910;">{cv_g2:.2f}%</div>
                 <div style="font-size: 0.65rem; color: #95A5A6; margin-bottom: 4px;">CV 가중평균</div>
-                <div style="font-size: 0.9rem; color: #5D6D7E;">σ {std_g2:.2f}</div>
+                <div style="font-size: 0.9rem; color: #5D6D7E;">표준편차 {std_g2:.2f}</div>
                 <div style="font-size: 0.6rem; color: #ADB5BD;">{len(g2)}개 매장</div>
             </div>
             <div style="background: #F4ECF7; border: 2px solid #8E44AD; border-radius: 10px; padding: 18px; text-align: center;">
                 <div style="font-size: 0.8rem; color: #5D6D7E; font-weight: 600;">전체 (0~2)</div>
                 <div style="font-size: 2rem; font-weight: bold; color: #6C3483;">{cv_all:.2f}%</div>
                 <div style="font-size: 0.65rem; color: #95A5A6; margin-bottom: 4px;">CV 가중평균</div>
-                <div style="font-size: 0.9rem; color: #5D6D7E;">σ {std_all:.2f}</div>
+                <div style="font-size: 0.9rem; color: #5D6D7E;">표준편차 {std_all:.2f}</div>
                 <div style="font-size: 0.6rem; color: #ADB5BD;">{len(stores_curve)}개 매장</div>
             </div>
         </div>
-        <div style="text-align: center; font-size: 0.7rem; color: #95A5A6; margin-bottom: 1rem;">m1~m48 가중평균 (매장수 가중) | CV = σ ÷ 평균 × 100</div>
+        <div style="text-align: center; font-size: 0.7rem; color: #95A5A6; margin-bottom: 1rem;">m1~m48 가중평균 (매장수 가중) | CV = 표준편차 ÷ 평균 × 100</div>
         ''', unsafe_allow_html=True)
 
         # ── 그룹 선택 ──
@@ -1265,8 +1265,8 @@ def main():
 
                 fig_var = go.Figure()
                 fig_var.add_trace(go.Scatter(x=months_list, y=avgs, mode='lines+markers', name='그룹 평균', line=dict(color='#1A3A5C', width=2)))
-                fig_var.add_trace(go.Scatter(x=months_list, y=[a+s for a,s in zip(avgs,stds)], mode='lines', name='+1σ', line=dict(color='#3498DB', width=1, dash='dash')))
-                fig_var.add_trace(go.Scatter(x=months_list, y=[a-s for a,s in zip(avgs,stds)], mode='lines', name='-1σ', line=dict(color='#E74C3C', width=1, dash='dash'), fill='tonexty', fillcolor='rgba(52,152,219,0.1)'))
+                fig_var.add_trace(go.Scatter(x=months_list, y=[a+s for a,s in zip(avgs,stds)], mode='lines', name='+1 표준편차', line=dict(color='#3498DB', width=1, dash='dash')))
+                fig_var.add_trace(go.Scatter(x=months_list, y=[a-s for a,s in zip(avgs,stds)], mode='lines', name='-1 표준편차', line=dict(color='#E74C3C', width=1, dash='dash'), fill='tonexty', fillcolor='rgba(52,152,219,0.1)'))
                 fig_var.add_hline(y=100, line_dash="dot", line_color="gray", annotation_text="기준(100)")
                 fig_var.update_layout(title=f"그룹 {'전체(0~2)' if selected_group=='전체(0~2)' else selected_group} — 곡선지수 평균 ± 표준편차", xaxis_title="월차", yaxis_title="곡선지수(%)", template="plotly_white", height=450)
                 st.plotly_chart(fig_var, use_container_width=True)
