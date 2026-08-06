@@ -1210,21 +1210,22 @@ def main():
 
                 with st.expander("📋 월차별 상세 데이터 보기"):
                     display_data = [{k: v for k, v in d.items() if not k.startswith('_')} for d in stats_data]
-                    display_df = pd.DataFrame(display_data)
-                    st.dataframe(
-                        display_df,
-                        use_container_width=True,
-                        hide_index=True,
-                        height=400,
-                        column_config={
-                            '월차': st.column_config.TextColumn('월차', width='small'),
-                            '매장수': st.column_config.NumberColumn('매장수', width='small'),
-                            '가중평균지수': st.column_config.NumberColumn('가중평균지수', width='medium'),
-                            '그룹평균': st.column_config.NumberColumn('그룹평균', width='medium'),
-                            '표준편차(분산)': st.column_config.TextColumn('표준편차(분산)', width='medium'),
-                            'CV(%)': st.column_config.ProgressColumn('CV(%)', min_value=0, max_value=30, format="%.1f%%", width='medium')
-                        }
-                    )
+                    # HTML 테이블로 렌더링
+                    headers = ['월차', '매장수', '가중평균지수', '그룹평균', '표준편차(분산)', 'CV(%)']
+                    table_html = '<div style="max-height: 400px; overflow-y: auto;"><table style="width:100%; border-collapse: collapse; font-size: 0.85rem;">'
+                    table_html += '<thead><tr>'
+                    for h in headers:
+                        table_html += f'<th style="background: #1A3A5C; color: white; font-weight: bold; text-align: center; padding: 10px 8px; position: sticky; top: 0;">{h}</th>'
+                    table_html += '</tr></thead><tbody>'
+                    for i, d in enumerate(display_data):
+                        bg = '#F8FBFF' if i % 2 == 0 else '#FFFFFF'
+                        table_html += f'<tr style="background: {bg};">'
+                        for h in headers:
+                            val = d.get(h, '')
+                            table_html += f'<td style="text-align: center; padding: 7px 8px; border-bottom: 1px solid #E8ECF0;">{val}</td>'
+                        table_html += '</tr>'
+                    table_html += '</tbody></table></div>'
+                    st.markdown(table_html, unsafe_allow_html=True)
 
                 st.markdown("---")
                 st.subheader("🏪 개별 매장 곡선지수")
