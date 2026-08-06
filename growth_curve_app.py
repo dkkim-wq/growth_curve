@@ -1028,8 +1028,7 @@ def main():
                         '매장수': len(month_values),
                         '가중평균지수': round(weighted_avg, 2) if weighted_avg else '-',
                         '그룹평균': round(avg, 2),
-                        '표준편차': round(std, 2),
-                        '분산': round(var, 2),
+                        '표준편차(분산)': f"{std:.2f} ({var:.2f})",
                         '변동계수(CV%)': round(cv, 2)
                     })
 
