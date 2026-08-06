@@ -1169,6 +1169,12 @@ def main():
         g1 = [s for s in stores_curve if s['group'] == '1']
         g2 = [s for s in stores_curve if s['group'] == '2']
 
+        # m1 데이터 있는 매장 수
+        n_g0 = sum(1 for s in g0 if len(s['indices']) > 0 and s['indices'][0] is not None)
+        n_g1 = sum(1 for s in g1 if len(s['indices']) > 0 and s['indices'][0] is not None)
+        n_g2 = sum(1 for s in g2 if len(s['indices']) > 0 and s['indices'][0] is not None)
+        n_all = n_g0 + n_g1 + n_g2
+
         std_g0 = calc_weighted_std(g0)
         std_g1 = calc_weighted_std(g1)
         std_g2 = calc_weighted_std(g2)
@@ -1199,28 +1205,28 @@ def main():
                 <div style="font-size: 2rem; font-weight: bold; color: #1A3A5C;">{cv_g0:.2f}%</div>
                 <div style="font-size: 0.65rem; color: #95A5A6; margin-bottom: 4px;">CV 가중평균</div>
                 <div style="font-size: 0.9rem; color: #5D6D7E;">표준편차 {std_g0:.2f}</div>
-                <div style="font-size: 0.6rem; color: #ADB5BD;">{len(g0)}개 매장</div>
+                <div style="font-size: 0.6rem; color: #ADB5BD;">{n_g0}개 매장</div>
             </div>
             <div style="background: #EAFAF1; border: 2px solid #2ECC71; border-radius: 10px; padding: 18px; text-align: center;">
                 <div style="font-size: 0.8rem; color: #5D6D7E; font-weight: 600;">그룹 1</div>
                 <div style="font-size: 2rem; font-weight: bold; color: #1E8449;">{cv_g1:.2f}%</div>
                 <div style="font-size: 0.65rem; color: #95A5A6; margin-bottom: 4px;">CV 가중평균</div>
                 <div style="font-size: 0.9rem; color: #5D6D7E;">표준편차 {std_g1:.2f}</div>
-                <div style="font-size: 0.6rem; color: #ADB5BD;">{len(g1)}개 매장</div>
+                <div style="font-size: 0.6rem; color: #ADB5BD;">{n_g1}개 매장</div>
             </div>
             <div style="background: #FEF9E7; border: 2px solid #F39C12; border-radius: 10px; padding: 18px; text-align: center;">
                 <div style="font-size: 0.8rem; color: #5D6D7E; font-weight: 600;">그룹 2</div>
                 <div style="font-size: 2rem; font-weight: bold; color: #D68910;">{cv_g2:.2f}%</div>
                 <div style="font-size: 0.65rem; color: #95A5A6; margin-bottom: 4px;">CV 가중평균</div>
                 <div style="font-size: 0.9rem; color: #5D6D7E;">표준편차 {std_g2:.2f}</div>
-                <div style="font-size: 0.6rem; color: #ADB5BD;">{len(g2)}개 매장</div>
+                <div style="font-size: 0.6rem; color: #ADB5BD;">{n_g2}개 매장</div>
             </div>
             <div style="background: #F4ECF7; border: 2px solid #8E44AD; border-radius: 10px; padding: 18px; text-align: center;">
                 <div style="font-size: 0.8rem; color: #5D6D7E; font-weight: 600;">전체 (0~2)</div>
                 <div style="font-size: 2rem; font-weight: bold; color: #6C3483;">{cv_all:.2f}%</div>
                 <div style="font-size: 0.65rem; color: #95A5A6; margin-bottom: 4px;">CV 가중평균</div>
                 <div style="font-size: 0.9rem; color: #5D6D7E;">표준편차 {std_all:.2f}</div>
-                <div style="font-size: 0.6rem; color: #ADB5BD;">{len(stores_curve)}개 매장</div>
+                <div style="font-size: 0.6rem; color: #ADB5BD;">{n_all}개 매장</div>
             </div>
         </div>
         <div style="text-align: center; font-size: 0.7rem; color: #95A5A6; margin-bottom: 1rem;">m1~m48 가중평균 (매장수 가중) | CV = 표준편차 ÷ 평균 × 100</div>
@@ -1235,7 +1241,9 @@ def main():
         else:
             filtered = [s for s in stores_curve if s['group'] == selected_group]
 
-        st.caption(f"대상 매장 수: {len(filtered)}개")
+        # m1 데이터가 있는 매장만 카운트
+        active_count = sum(1 for s in filtered if len(s['indices']) > 0 and s['indices'][0] is not None)
+        st.caption(f"대상 매장 수: {active_count}개")
 
         if filtered:
             max_months = 48
