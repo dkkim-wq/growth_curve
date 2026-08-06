@@ -782,7 +782,7 @@ def main():
         st.subheader("🔍 개별 매장 상세 조회")
 
         store_names = [s['name'] for s in all_stores]
-        col_store, col_method = st.columns([3, 2])
+        col_store, col_method, col_ver = st.columns([3, 2, 2])
         with col_store:
             selected_store_name = st.selectbox(
                 "매장 선택", store_names,
@@ -793,6 +793,14 @@ def main():
                 "방식 선택", ALL_METHODS,
                 format_func=lambda x: f"{x}: {METHOD_LABELS[x]}",
                 key="tab2_method"
+            )
+        with col_ver:
+            ver_end_map = {'v1': 3, 'v2': 4, 'v3': 5, 'v4': 6, 'v5': 7, 'v6': 8}
+            selected_version_tab2 = st.selectbox(
+                "버전 선택",
+                ['v1', 'v2', 'v3', 'v4', 'v5', 'v6'],
+                format_func=lambda x: f"V{x[1]}: m1~m{ver_end_map[x]} 데이터",
+                key="tab2_version"
             )
 
         if selected_store_name:
@@ -806,7 +814,7 @@ def main():
             st.markdown(f"**데이터: m0 ~ m{max_month} ({max_month+1}개월)**")
 
             # 실제평균 한 번만 표시
-            sample_result = validate_store(store, curve_index, 'A')
+            sample_result = validate_store(store, curve_index, 'A', selected_version_tab2)
             if sample_result and sample_result['actual'] is not None:
                 actual_avg = np.mean(sample_result['actual'])
                 st.markdown(f"**실제 기준 매출(오픈4~9개월 평균)=100 : :blue[{actual_avg:,.0f}원]**")
@@ -816,7 +824,7 @@ def main():
             # 6가지 방식을 HTML 카드 형식으로
             method_results = []
             for method in ALL_METHODS:
-                result = validate_store(store, curve_index, method)
+                result = validate_store(store, curve_index, method, selected_version_tab2)
                 if result:
                     method_results.append({
                         'method': method,
@@ -939,7 +947,7 @@ def main():
             st.markdown(cards_html, unsafe_allow_html=True)
 
             # 선택 방식 상세
-            result = validate_store(store, curve_index, selected_method_tab2)
+            result = validate_store(store, curve_index, selected_method_tab2, selected_version_tab2)
             if result and result['actual'] is not None:
                 st.markdown("---")
                 st.markdown(f"#### 방식 {selected_method_tab2} 상세")
@@ -1039,7 +1047,7 @@ def main():
                 ))
 
                 # 성장곡선 예측 오버레이
-                result_for_curve = validate_store(store, curve_index, selected_method_tab2)
+                result_for_curve = validate_store(store, curve_index, selected_method_tab2, selected_version_tab2)
                 if result_for_curve:
                     preds = predict_growth_curve(
                         result_for_curve['base_revenue'], curve_index
