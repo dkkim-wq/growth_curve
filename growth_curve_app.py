@@ -727,20 +727,31 @@ def main():
         results = results_all.get(selected_method, [])
 
         if results:
-            df = pd.DataFrame([{
+            tab1_data = [{
                 '매장명': r['name'],
-                '실제 기준 매출(오픈4~9개월 평균)=100': f"{np.mean(r['actual']):,.0f}",
+                '실제 기준 매출': f"{np.mean(r['actual']):,.0f}",
                 '예측 기준 매출': f"{r['base_revenue']:,.0f}",
                 '오차(액수)': f"{r['base_revenue'] - np.mean(r['actual']):+,.0f}",
                 '오차율': f"{r['avg_error']:+.2f}%",
                 '최적방식': store_best_method.get(r['name'], '-')
-            } for r in sorted(results, key=lambda x: abs(x['avg_error']))])
+            } for r in sorted(results, key=lambda x: abs(x['avg_error']))]
 
-            st.dataframe(
-                df,
-                use_container_width=True,
-                hide_index=True
-            )
+            headers_t1 = ['매장명', '실제 기준 매출', '예측 기준 매출', '오차(액수)', '오차율', '최적방식']
+            t1_html = '<div style="max-height: 500px; overflow-y: auto;"><table style="width:100%; border-collapse: collapse; font-size: 0.85rem;">'
+            t1_html += '<thead><tr>'
+            for h in headers_t1:
+                t1_html += f'<th style="background: #1A3A5C; color: white; font-weight: bold; text-align: center; padding: 10px 8px; position: sticky; top: 0;">{h}</th>'
+            t1_html += '</tr></thead><tbody>'
+            for i, d in enumerate(tab1_data):
+                bg = '#F8FBFF' if i % 2 == 0 else '#FFFFFF'
+                t1_html += f'<tr style="background: {bg};">'
+                for h in headers_t1:
+                    val = d.get(h, '')
+                    align = 'left' if h == '매장명' else 'center'
+                    t1_html += f'<td style="text-align: {align}; padding: 7px 8px; border-bottom: 1px solid #E8ECF0;">{val}</td>'
+                t1_html += '</tr>'
+            t1_html += '</tbody></table></div>'
+            st.markdown(t1_html, unsafe_allow_html=True)
 
             # 분포 차트
             st.subheader("📊 오차율 분포")
@@ -955,13 +966,26 @@ def main():
 
                 v_start = result['verify_start']
                 v_end = result['verify_end']
-                detail_df = pd.DataFrame({
-                    '월차': [f'm{i} ({curve_index.get(i, 0):.1f}%)' for i in range(v_start, v_end)],
-                    '실제 매출': [f"{a:,.0f}" for a in result['actual']],
-                    '예측 매출': [f"{p:,.0f}" for p in result['predicted']],
-                    '오차율(%)': [f"{e:+.1f}%" for e in result['errors']]
-                })
-                st.dataframe(detail_df, use_container_width=True, hide_index=True)
+                detail_rows = list(zip(
+                    [f'm{i} ({curve_index.get(i, 0):.1f}%)' for i in range(v_start, v_end)],
+                    [f"{a:,.0f}" for a in result['actual']],
+                    [f"{p:,.0f}" for p in result['predicted']],
+                    [f"{e:+.1f}%" for e in result['errors']]
+                ))
+                det_headers = ['월차', '실제 매출', '예측 매출', '오차율(%)']
+                det_html = '<table style="width:100%; border-collapse: collapse; font-size: 0.85rem;">'
+                det_html += '<thead><tr>'
+                for h in det_headers:
+                    det_html += f'<th style="background: #1A3A5C; color: white; font-weight: bold; text-align: center; padding: 10px 8px;">{h}</th>'
+                det_html += '</tr></thead><tbody>'
+                for i, row in enumerate(detail_rows):
+                    bg = '#F8FBFF' if i % 2 == 0 else '#FFFFFF'
+                    det_html += f'<tr style="background: {bg};">'
+                    for val in row:
+                        det_html += f'<td style="text-align: center; padding: 7px 8px; border-bottom: 1px solid #E8ECF0;">{val}</td>'
+                    det_html += '</tr>'
+                det_html += '</tbody></table>'
+                st.markdown(det_html, unsafe_allow_html=True)
 
                 # 예측 vs 실제 비교 차트
                 fig = go.Figure()
@@ -1005,13 +1029,26 @@ def main():
                         detail_errors.append(err)
 
                 if detail_months:
-                    detail_df = pd.DataFrame({
-                        '월차': [f'{m} ({curve_index.get(int(m[1:]), 0):.1f}%)' for m in detail_months],
-                        '실제 매출': [f"{a:,.0f}" for a in detail_actual],
-                        '예측 매출': [f"{p:,.0f}" for p in detail_predicted],
-                        '오차율(%)': [f"{e:+.1f}%" for e in detail_errors]
-                    })
-                    st.dataframe(detail_df, use_container_width=True, hide_index=True)
+                    detail_rows2 = list(zip(
+                        [f'{m} ({curve_index.get(int(m[1:]), 0):.1f}%)' for m in detail_months],
+                        [f"{a:,.0f}" for a in detail_actual],
+                        [f"{p:,.0f}" for p in detail_predicted],
+                        [f"{e:+.1f}%" for e in detail_errors]
+                    ))
+                    det_headers2 = ['월차', '실제 매출', '예측 매출', '오차율(%)']
+                    det_html2 = '<table style="width:100%; border-collapse: collapse; font-size: 0.85rem;">'
+                    det_html2 += '<thead><tr>'
+                    for h in det_headers2:
+                        det_html2 += f'<th style="background: #1A3A5C; color: white; font-weight: bold; text-align: center; padding: 10px 8px;">{h}</th>'
+                    det_html2 += '</tr></thead><tbody>'
+                    for i, row in enumerate(detail_rows2):
+                        bg = '#F8FBFF' if i % 2 == 0 else '#FFFFFF'
+                        det_html2 += f'<tr style="background: {bg};">'
+                        for val in row:
+                            det_html2 += f'<td style="text-align: center; padding: 7px 8px; border-bottom: 1px solid #E8ECF0;">{val}</td>'
+                        det_html2 += '</tr>'
+                    det_html2 += '</tbody></table>'
+                    st.markdown(det_html2, unsafe_allow_html=True)
 
                     # 차트
                     fig = go.Figure()
@@ -1222,7 +1259,12 @@ def main():
                         table_html += f'<tr style="background: {bg};">'
                         for h in headers:
                             val = d.get(h, '')
-                            table_html += f'<td style="text-align: center; padding: 7px 8px; border-bottom: 1px solid #E8ECF0;">{val}</td>'
+                            if h == 'CV(%)' and isinstance(val, (int, float)):
+                                bar_w = min(val / 30 * 100, 100)
+                                color = '#2ECC71' if val < 10 else '#F39C12' if val < 20 else '#E74C3C'
+                                table_html += f'<td style="text-align: center; padding: 7px 8px; border-bottom: 1px solid #E8ECF0;"><div style="display:flex; align-items:center; gap:6px;"><div style="flex:1; background:#E8ECF0; border-radius:4px; height:14px; overflow:hidden;"><div style="background:{color}; height:100%; width:{bar_w}%; border-radius:4px;"></div></div><span style="font-size:0.75rem; min-width:40px;">{val:.1f}%</span></div></td>'
+                            else:
+                                table_html += f'<td style="text-align: center; padding: 7px 8px; border-bottom: 1px solid #E8ECF0;">{val}</td>'
                         table_html += '</tr>'
                     table_html += '</tbody></table></div>'
                     st.markdown(table_html, unsafe_allow_html=True)
