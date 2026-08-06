@@ -409,14 +409,6 @@ def main():
         st.metric("엑셀 매장 수", len(stores))
         st.metric("추가 매장 수", len(added_stores))
         st.metric("곡선지수 월차 수", len(curve_index))
-        st.markdown("---")
-        st.subheader("🔧 검증 방식")
-        selected_method = st.radio(
-            "역산 시작월 선택",
-            ALL_METHODS,
-            format_func=lambda x: f"{x}: {METHOD_LABELS[x]}",
-            index=0
-        )
 
     # 탭 구성
     tab1, tab2, tab5 = st.tabs([
@@ -790,10 +782,18 @@ def main():
         st.subheader("🔍 개별 매장 상세 조회")
 
         store_names = [s['name'] for s in all_stores]
-        selected_store_name = st.selectbox(
-            "매장 선택", store_names,
-            index=0 if store_names else None
-        )
+        col_store, col_method = st.columns([3, 2])
+        with col_store:
+            selected_store_name = st.selectbox(
+                "매장 선택", store_names,
+                index=0 if store_names else None
+            )
+        with col_method:
+            selected_method_tab2 = st.selectbox(
+                "방식 선택", ALL_METHODS,
+                format_func=lambda x: f"{x}: {METHOD_LABELS[x]}",
+                key="tab2_method"
+            )
 
         if selected_store_name:
             store = next(s for s in all_stores if s['name'] == selected_store_name)
@@ -939,10 +939,10 @@ def main():
             st.markdown(cards_html, unsafe_allow_html=True)
 
             # 선택 방식 상세
-            result = validate_store(store, curve_index, selected_method)
+            result = validate_store(store, curve_index, selected_method_tab2)
             if result and result['actual'] is not None:
                 st.markdown("---")
-                st.markdown(f"#### 방식 {selected_method} 상세")
+                st.markdown(f"#### 방식 {selected_method_tab2} 상세")
 
                 detail_df = pd.DataFrame({
                     '월차': [f'm{i} ({curve_index.get(i, 0):.1f}%)' for i in range(4, 10)],
@@ -974,7 +974,7 @@ def main():
             elif result and result['base_revenue'] is not None:
                 # m4~m9 부족하지만 기준매출은 있는 경우: 있는 데이터만 비교
                 st.markdown("---")
-                st.markdown(f"#### 방식 {selected_method} 상세 (보유 데이터 기준)")
+                st.markdown(f"#### 방식 {selected_method_tab2} 상세 (보유 데이터 기준)")
                 sales = store['sales']
                 max_m = get_store_max_month(store)
 
@@ -1039,7 +1039,7 @@ def main():
                 ))
 
                 # 성장곡선 예측 오버레이
-                result_for_curve = validate_store(store, curve_index, selected_method)
+                result_for_curve = validate_store(store, curve_index, selected_method_tab2)
                 if result_for_curve:
                     preds = predict_growth_curve(
                         result_for_curve['base_revenue'], curve_index
