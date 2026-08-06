@@ -420,9 +420,9 @@ def main():
 
         # 버전 선택
         version_labels = {
-            'v1': 'V1: m1~m3 역산 → m4~m9 검증',
-            'v2': 'V2: m1~m4 역산 → m5~m9 검증',
-            'v3': 'V3: m1~m5 역산 → m6~m9 검증'
+            'v1': 'V1: m1~m3 데이터 사용',
+            'v2': 'V2: m1~m4 데이터 사용',
+            'v3': 'V3: m1~m5 데이터 사용'
         }
         selected_version = st.radio(
             "검증 버전 선택", ['v1', 'v2', 'v3'],
@@ -438,10 +438,30 @@ def main():
         else:  # v3
             version_methods = ['A', 'B', 'C', 'D', 'E']
 
-        # 상세 표에 사용할 방식 선택
+        # 버전별 방식 라벨 (동적)
+        end_m_map = {'v1': 3, 'v2': 4, 'v3': 5}
+        ver_end = end_m_map[selected_version]
+        ver_labels = {}
+        for m in version_methods:
+            start_m = {'A': 1, 'B': 2, 'C': 3, 'D': 4, 'E': 5}.get(m)
+            if start_m and start_m <= ver_end:
+                months_str = ','.join([f'm{i}' for i in range(start_m, ver_end + 1)])
+                ver_labels[m] = months_str + ' 사용'
+            else:
+                ver_labels[m] = METHOD_LABELS.get(m, '')
+
+        # 상세 표에 사용할 방식 선택 (버전별 라벨)
+        def get_method_label(method, ver):
+            end_m = {'v1': 3, 'v2': 4, 'v3': 5}[ver]
+            start_m = {'A': 1, 'B': 2, 'C': 3, 'D': 4, 'E': 5}.get(method)
+            if start_m and start_m <= end_m:
+                months_used = ','.join([f'm{i}' for i in range(start_m, end_m + 1)])
+                return f"{method}: {months_used} 사용"
+            return f"{method}: {METHOD_LABELS.get(method, '')}"
+
         selected_method = st.selectbox(
             "상세 결과 방식 선택", version_methods,
-            format_func=lambda x: f"{x}: {METHOD_LABELS[x]}",
+            format_func=lambda x: get_method_label(x, selected_version),
             key="detail_method_sel"
         )
 
@@ -529,7 +549,7 @@ def main():
                 summary_html += f'''
                 <div style="background: {bg_color}; border: 2px solid {border_color}; border-radius: 10px; padding: 18px; text-align: center;">
                     <div style="font-size: 1.1rem; color: #1A3A5C; font-weight: 800; margin-bottom: 10px;">
-                        {method} <span style="font-size: 0.75rem; color: #5D6D7E; font-weight: 600;">({METHOD_LABELS[method]})</span> {badge}
+                        {method} <span style="font-size: 0.75rem; color: #5D6D7E; font-weight: 600;">({ver_labels.get(method, METHOD_LABELS.get(method, chr(39)+chr(39)))})</span> {badge}
                     </div>
                     <div style="font-size: 1.6rem; font-weight: bold; color: #1A3A5C;">{avg_abs_err:.2f}%</div>
                     <div style="font-size: 0.7rem; color: #95A5A6; margin-bottom: 4px;">트리밍 평균 오차율</div>
@@ -552,7 +572,7 @@ def main():
             else:
                 summary_html += f'''
                 <div style="background: #F8F9FA; border: 1px solid #DEE2E6; border-radius: 10px; padding: 18px; text-align: center; opacity: 0.6;">
-                    <div style="font-size: 0.8rem; color: #6C757D; font-weight: 600;">{method} ({METHOD_LABELS[method]})</div>
+                    <div style="font-size: 0.8rem; color: #6C757D; font-weight: 600;">{method} ({ver_labels.get(method, METHOD_LABELS.get(method, chr(39)+chr(39)))})</div>
                     <div style="font-size: 1rem; color: #ADB5BD; margin-top: 10px;">데이터 없음</div>
                 </div>'''
 
@@ -591,7 +611,7 @@ def main():
                     summary_html += f'''
                 <div style="background: {bg_color}; border: 2px solid {border_color}; border-radius: 10px; padding: 16px; text-align: center;">
                     <div style="font-size: 1rem; color: #1A3A5C; font-weight: 800; margin-bottom: 8px;">
-                        {method} <span style="font-size: 0.7rem; color: #5D6D7E; font-weight: 600;">({METHOD_LABELS[method]})</span> {badge}
+                        {method} <span style="font-size: 0.7rem; color: #5D6D7E; font-weight: 600;">({ver_labels.get(method, METHOD_LABELS.get(method, chr(39)+chr(39)))})</span> {badge}
                     </div>
                     <div style="font-size: 1.4rem; font-weight: bold; color: #1A3A5C;">{avg_abs_err:.2f}%</div>
                     <div style="font-size: 0.65rem; color: #95A5A6; margin-bottom: 3px;">트리밍 평균 오차율</div>
@@ -614,7 +634,7 @@ def main():
                 else:
                     summary_html += f'''
                 <div style="background: #F8F9FA; border: 1px solid #DEE2E6; border-radius: 10px; padding: 16px; text-align: center; opacity: 0.6;">
-                    <div style="font-size: 0.8rem; color: #6C757D; font-weight: 600;">{method} ({METHOD_LABELS[method]})</div>
+                    <div style="font-size: 0.8rem; color: #6C757D; font-weight: 600;">{method} ({ver_labels.get(method, METHOD_LABELS.get(method, chr(39)+chr(39)))})</div>
                     <div style="font-size: 1rem; color: #ADB5BD; margin-top: 10px;">데이터 없음</div>
                 </div>'''
 
