@@ -1100,7 +1100,6 @@ def main():
         # 데이터 로드
         @st.cache_data
         def load_store_curves():
-            """Calc_지수곡선(시즌미반영) 시트에서 매장별 곡선지수 로드"""
             wb = openpyxl.load_workbook(FILE_PATH, data_only=True, read_only=True)
             ws = wb['Calc_지수곡선(시즌미반영)']
             stores_curve = []
@@ -1111,19 +1110,60 @@ def main():
                     continue
                 indices = []
                 for i in range(6, min(54, len(row))):
-                    val = row[i]
-                    indices.append(val if val is not None else None)
-                stores_curve.append({
-                    'name': str(name),
-                    'group': group,
-                    'indices': indices
-                })
+                    indices.append(row[i] if row[i] is not None else None)
+                stores_curve.append({'name': str(name), 'group': group, 'indices': indices})
             wb.close()
             return stores_curve
 
         stores_curve = load_store_curves()
 
-        # 그룹 선택
+        # ── 4개 그룹 가중평균 표준편차 (맨 위) ──
+        def calc_weighted_std(store_list):
+            stds_list, counts_list = [], []
+            for m_idx in range(48):
+                vals = [s['indices'][m_idx] for s in store_list
+                        if m_idx < len(s['indices']) and s['indices'][m_idx] is not None]
+                if len(vals) >= 2:
+                    stds_list.append(np.std(vals, ddof=1))
+                    counts_list.append(len(vals))
+            return np.average(stds_list, weights=counts_list) if stds_list else 0
+
+        g0 = [s for s in stores_curve if s['group'] == '0']
+        g1 = [s for s in stores_curve if s['group'] == '1']
+        g2 = [s for s in stores_curve if s['group'] == '2']
+
+        std_g0 = calc_weighted_std(g0)
+        std_g1 = calc_weighted_std(g1)
+        std_g2 = calc_weighted_std(g2)
+        std_all = calc_weighted_std(stores_curve)
+
+        st.markdown(f'''
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 1rem 0;">
+            <div style="background: #EBF5FB; border: 2px solid #2471A3; border-radius: 10px; padding: 18px; text-align: center;">
+                <div style="font-size: 0.8rem; color: #5D6D7E; font-weight: 600;">그룹 0 (경쟁 0)</div>
+                <div style="font-size: 1.8rem; font-weight: bold; color: #1A3A5C;">{std_g0:.2f}</div>
+                <div style="font-size: 0.65rem; color: #95A5A6;">{len(g0)}개 매장</div>
+            </div>
+            <div style="background: #EAFAF1; border: 2px solid #2ECC71; border-radius: 10px; padding: 18px; text-align: center;">
+                <div style="font-size: 0.8rem; color: #5D6D7E; font-weight: 600;">그룹 1</div>
+                <div style="font-size: 1.8rem; font-weight: bold; color: #1E8449;">{std_g1:.2f}</div>
+                <div style="font-size: 0.65rem; color: #95A5A6;">{len(g1)}개 매장</div>
+            </div>
+            <div style="background: #FEF9E7; border: 2px solid #F39C12; border-radius: 10px; padding: 18px; text-align: center;">
+                <div style="font-size: 0.8rem; color: #5D6D7E; font-weight: 600;">그룹 2</div>
+                <div style="font-size: 1.8rem; font-weight: bold; color: #D68910;">{std_g2:.2f}</div>
+                <div style="font-size: 0.65rem; color: #95A5A6;">{len(g2)}개 매장</div>
+            </div>
+            <div style="background: #F4ECF7; border: 2px solid #8E44AD; border-radius: 10px; padding: 18px; text-align: center;">
+                <div style="font-size: 0.8rem; color: #5D6D7E; font-weight: 600;">전체 (0~2)</div>
+                <div style="font-size: 1.8rem; font-weight: bold; color: #6C3483;">{std_all:.2f}</div>
+                <div style="font-size: 0.65rem; color: #95A5A6;">{len(stores_curve)}개 매장</div>
+            </div>
+        </div>
+        <div style="text-align: center; font-size: 0.7rem; color: #95A5A6; margin-bottom: 1rem;">m1~m48 가중평균 표준편차 (매장수 가중)</div>
+        ''', unsafe_allow_html=True)
+
+        # ── 그룹 선택 ──
         groups_available = sorted(set(s['group'] for s in stores_curve))
         selected_group = st.selectbox("그룹 선택", ['전체(0~2)'] + groups_available, key="group_sel")
 
@@ -1135,150 +1175,56 @@ def main():
         st.caption(f"대상 매장 수: {len(filtered)}개")
 
         if filtered:
-            # 월차별 통계 계산
             max_months = 48
             stats_data = []
-            monthly_stds = []
-            monthly_counts = []
             for m_idx in range(max_months):
-                month_values = []
-                for s in filtered:
-                    if m_idx < len(s['indices']) and s['indices'][m_idx] is not None:
-                        month_values.append(s['indices'][m_idx])
-
-                if len(month_values) >= 2:
-                    avg = np.mean(month_values)
-                    std = np.std(month_values, ddof=1)
-                    var = np.var(month_values, ddof=1)
+                vals = [s['indices'][m_idx] for s in filtered
+                        if m_idx < len(s['indices']) and s['indices'][m_idx] is not None]
+                if len(vals) >= 2:
+                    avg = np.mean(vals)
+                    std = np.std(vals, ddof=1)
+                    var = np.var(vals, ddof=1)
                     cv = (std / avg * 100) if avg != 0 else 0
-                    weighted_avg = curve_index.get(m_idx + 1, None)
+                    w_avg = curve_index.get(m_idx + 1, None)
                     stats_data.append({
-                        '월차': f'm{m_idx + 1}',
-                        '매장수': len(month_values),
-                        '가중평균지수': round(weighted_avg, 2) if weighted_avg else '-',
+                        '월차': f'm{m_idx+1}', '매장수': len(vals),
+                        '가중평균지수': round(w_avg, 2) if w_avg else '-',
                         '그룹평균': round(avg, 2),
                         '표준편차(분산)': f"{std:.2f} ({var:.2f})",
-                        '변동계수(CV%)': round(cv, 2),
-                        '_std': std,
-                        '_avg': avg
+                        'CV(%)': round(cv, 2),
+                        '_std': std, '_avg': avg
                     })
-                    monthly_stds.append(std)
-                    monthly_counts.append(len(month_values))
 
             if stats_data:
-                # ── m1~m4 가중평균 표준편차 (매장수 가중) ──
-                st.markdown("---")
-                early_stds = monthly_stds[:4]
-                early_counts = monthly_counts[:4]
-                if early_stds:
-                    weighted_std_m1_4 = np.average(early_stds, weights=early_counts)
-                else:
-                    weighted_std_m1_4 = 0
-
-                # 요약 카드
-                summary_card = f'''
-                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 1rem 0;">
-                    <div style="background: #EBF5FB; border: 2px solid #2471A3; border-radius: 10px; padding: 20px; text-align: center;">
-                        <div style="font-size: 0.8rem; color: #5D6D7E; font-weight: 600; margin-bottom: 6px;">m1~m4 가중평균 표준편차</div>
-                        <div style="font-size: 2rem; font-weight: bold; color: #1A3A5C;">{weighted_std_m1_4:.2f}</div>
-                        <div style="font-size: 0.7rem; color: #95A5A6;">매장수 가중 적용</div>
-                    </div>
-                    <div style="background: #EAFAF1; border: 2px solid #2ECC71; border-radius: 10px; padding: 20px; text-align: center;">
-                        <div style="font-size: 0.8rem; color: #5D6D7E; font-weight: 600; margin-bottom: 6px;">m1~m4 단순평균 표준편차</div>
-                        <div style="font-size: 2rem; font-weight: bold; color: #1E8449;">{np.mean(early_stds):.2f}</div>
-                        <div style="font-size: 0.7rem; color: #95A5A6;">단순 평균</div>
-                    </div>
-                    <div style="background: #FEF9E7; border: 2px solid #F39C12; border-radius: 10px; padding: 20px; text-align: center;">
-                        <div style="font-size: 0.8rem; color: #5D6D7E; font-weight: 600; margin-bottom: 6px;">전체(m1~m48) 가중평균 표준편차</div>
-                        <div style="font-size: 2rem; font-weight: bold; color: #D68910;">{np.average(monthly_stds, weights=monthly_counts):.2f}</div>
-                        <div style="font-size: 0.7rem; color: #95A5A6;">매장수 가중 적용</div>
-                    </div>
-                </div>
-                '''
-                st.markdown(summary_card, unsafe_allow_html=True)
-
-                # ── 차트: 그룹 평균 ± 표준편차 ──
-                st.markdown("---")
-                fig_var = go.Figure()
                 months_list = [d['월차'] for d in stats_data]
                 avgs = [d['_avg'] for d in stats_data]
                 stds = [d['_std'] for d in stats_data]
 
-                fig_var.add_trace(go.Scatter(
-                    x=months_list, y=avgs,
-                    mode='lines+markers', name='그룹 평균',
-                    line=dict(color='#1A3A5C', width=2)
-                ))
-                fig_var.add_trace(go.Scatter(
-                    x=months_list, y=[a + s for a, s in zip(avgs, stds)],
-                    mode='lines', name='+1σ',
-                    line=dict(color='#3498DB', width=1, dash='dash')
-                ))
-                fig_var.add_trace(go.Scatter(
-                    x=months_list, y=[a - s for a, s in zip(avgs, stds)],
-                    mode='lines', name='-1σ',
-                    line=dict(color='#E74C3C', width=1, dash='dash'),
-                    fill='tonexty', fillcolor='rgba(52,152,219,0.1)'
-                ))
-                fig_var.add_hline(y=100, line_dash="dot", line_color="gray",
-                                  annotation_text="기준(100)")
-                fig_var.update_layout(
-                    title=f"그룹 {'전체(0~2)' if selected_group == '전체(0~2)' else selected_group} — 곡선지수 평균 ± 표준편차",
-                    xaxis_title="월차", yaxis_title="곡선지수(%)",
-                    template="plotly_white", height=450
-                )
+                fig_var = go.Figure()
+                fig_var.add_trace(go.Scatter(x=months_list, y=avgs, mode='lines+markers', name='그룹 평균', line=dict(color='#1A3A5C', width=2)))
+                fig_var.add_trace(go.Scatter(x=months_list, y=[a+s for a,s in zip(avgs,stds)], mode='lines', name='+1σ', line=dict(color='#3498DB', width=1, dash='dash')))
+                fig_var.add_trace(go.Scatter(x=months_list, y=[a-s for a,s in zip(avgs,stds)], mode='lines', name='-1σ', line=dict(color='#E74C3C', width=1, dash='dash'), fill='tonexty', fillcolor='rgba(52,152,219,0.1)'))
+                fig_var.add_hline(y=100, line_dash="dot", line_color="gray", annotation_text="기준(100)")
+                fig_var.update_layout(title=f"그룹 {'전체(0~2)' if selected_group=='전체(0~2)' else selected_group} — 곡선지수 평균 ± 표준편차", xaxis_title="월차", yaxis_title="곡선지수(%)", template="plotly_white", height=450)
                 st.plotly_chart(fig_var, use_container_width=True)
 
-                # ── 월차별 상세 표 (접기) ──
-                st.markdown("---")
                 with st.expander("📋 월차별 상세 데이터 보기"):
-                    display_df = pd.DataFrame([{
-                        '월차': d['월차'],
-                        '매장수': d['매장수'],
-                        '가중평균지수': d['가중평균지수'],
-                        '그룹평균': d['그룹평균'],
-                        '표준편차(분산)': d['표준편차(분산)'],
-                        'CV(%)': d['변동계수(CV%)']
-                    } for d in stats_data])
-                    st.dataframe(display_df, use_container_width=True, hide_index=True)
+                    st.dataframe(pd.DataFrame([{k: v for k, v in d.items() if not k.startswith('_')} for d in stats_data]), use_container_width=True, hide_index=True)
 
-                # ── 개별 매장 곡선 오버레이 ──
                 st.markdown("---")
                 st.subheader("🏪 개별 매장 곡선지수")
-                show_stores = st.multiselect(
-                    "매장 선택 (최대 10개)",
-                    [s['name'] for s in filtered],
-                    max_selections=10, key="var_stores"
-                )
+                show_stores = st.multiselect("매장 선택 (최대 10개)", [s['name'] for s in filtered], max_selections=10, key="var_stores")
                 if show_stores:
-                    fig_ind = go.Figure()
-                    group_info = ", ".join([
-                        f"{s['name'].split(') ')[1] if ')' in s['name'] else s['name']} (그룹{s['group']})"
-                        for s in filtered if s['name'] in show_stores
-                    ])
+                    group_info = ", ".join([f"{s['name'].split(') ')[1] if ')' in s['name'] else s['name']} (그룹{s['group']})" for s in filtered if s['name'] in show_stores])
                     st.caption(f"📌 {group_info}")
-                    fig_ind.add_trace(go.Scatter(
-                        x=months_list, y=avgs,
-                        mode='lines', name='그룹 평균',
-                        line=dict(color='#95A5A6', width=3, dash='dot')
-                    ))
-                    colors = ['#1A3A5C', '#E74C3C', '#2ECC71', '#9B59B6', '#F39C12',
-                              '#1ABC9C', '#E67E22', '#8E44AD', '#2980B9', '#27AE60']
+                    fig_ind = go.Figure()
+                    fig_ind.add_trace(go.Scatter(x=months_list, y=avgs, mode='lines', name='그룹 평균', line=dict(color='#95A5A6', width=3, dash='dot')))
+                    colors = ['#1A3A5C','#E74C3C','#2ECC71','#9B59B6','#F39C12','#1ABC9C','#E67E22','#8E44AD','#2980B9','#27AE60']
                     for idx, sname in enumerate(show_stores):
                         s = next(x for x in filtered if x['name'] == sname)
                         vals = [v for v in s['indices'][:max_months] if v is not None]
-                        x_vals = [f'm{i+1}' for i in range(len(vals))]
-                        fig_ind.add_trace(go.Scatter(
-                            x=x_vals, y=vals,
-                            mode='lines+markers', name=sname,
-                            line=dict(color=colors[idx % len(colors)], width=2),
-                            marker=dict(size=5)
-                        ))
-                    fig_ind.update_layout(
-                        title="개별 매장 곡선지수 vs 그룹 평균",
-                        xaxis_title="월차", yaxis_title="곡선지수(%)",
-                        template="plotly_white", height=450
-                    )
+                        fig_ind.add_trace(go.Scatter(x=[f'm{i+1}' for i in range(len(vals))], y=vals, mode='lines+markers', name=sname, line=dict(color=colors[idx%len(colors)], width=2), marker=dict(size=5)))
+                    fig_ind.update_layout(title="개별 매장 곡선지수 vs 그룹 평균", xaxis_title="월차", yaxis_title="곡선지수(%)", template="plotly_white", height=450)
                     st.plotly_chart(fig_ind, use_container_width=True)
 
 
