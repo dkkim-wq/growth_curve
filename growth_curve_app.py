@@ -1310,13 +1310,19 @@ def main():
                     group_info = ", ".join([f"{s['name'].split(') ')[1] if ')' in s['name'] else s['name']} (그룹{s['group']})" for s in filtered if s['name'] in show_stores])
                     st.caption(f"📌 {group_info}")
                     fig_ind = go.Figure()
-                    fig_ind.add_trace(go.Scatter(x=months_list, y=avgs, mode='lines', name='그룹 평균', line=dict(color='#95A5A6', width=3, dash='dot')))
+                    # 그룹0~2 가중평균 곡선지수
+                    weighted_curve_vals = [curve_index.get(m+1) for m in range(max_months)]
+                    weighted_curve_x = [f'm{m+1}' for m in range(max_months) if curve_index.get(m+1) is not None]
+                    weighted_curve_y = [v for v in weighted_curve_vals if v is not None]
+                    fig_ind.add_trace(go.Scatter(x=weighted_curve_x, y=weighted_curve_y, mode='lines', name='가중평균 곡선지수(0~2)', line=dict(color='#8E44AD', width=2, dash='dashdot')))
+                    # 선택 그룹 평균
+                    fig_ind.add_trace(go.Scatter(x=months_list, y=avgs, mode='lines', name=f'그룹 {selected_group} 평균', line=dict(color='#95A5A6', width=3, dash='dot')))
                     colors = ['#1A3A5C','#E74C3C','#2ECC71','#9B59B6','#F39C12','#1ABC9C','#E67E22','#8E44AD','#2980B9','#27AE60']
                     for idx, sname in enumerate(show_stores):
                         s = next(x for x in filtered if x['name'] == sname)
                         vals = [v for v in s['indices'][:max_months] if v is not None]
                         fig_ind.add_trace(go.Scatter(x=[f'm{i+1}' for i in range(len(vals))], y=vals, mode='lines+markers', name=sname, line=dict(color=colors[idx%len(colors)], width=2), marker=dict(size=5)))
-                    fig_ind.update_layout(title="개별 매장 곡선지수 vs 그룹 평균", xaxis_title="월차", yaxis_title="곡선지수(%)", template="plotly_white", height=450)
+                    fig_ind.update_layout(title="개별 매장 곡선지수 vs 그룹 평균 vs 가중평균", xaxis_title="월차", yaxis_title="곡선지수(%)", template="plotly_white", height=450)
                     st.plotly_chart(fig_ind, use_container_width=True)
 
 
