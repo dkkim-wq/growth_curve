@@ -237,35 +237,21 @@ def validate_store(store, curve_index, method='A', version='v1'):
     """
     sales = store['sales']
 
-    # 버전별 설정
+    # 버전별 설정 (역산 범위만 달라짐)
     if version == 'v1':
         end_m = 3
-        verify_start = 4
-        verify_end = 10
     elif version == 'v2':
         end_m = 4
-        verify_start = 5
-        verify_end = 10
     elif version == 'v3':
         end_m = 5
-        verify_start = 6
-        verify_end = 10
     elif version == 'v4':
         end_m = 6
-        verify_start = 7
-        verify_end = 10
     elif version == 'v5':
         end_m = 7
-        verify_start = 8
-        verify_end = 10
     elif version == 'v6':
         end_m = 8
-        verify_start = 9
-        verify_end = 10
     else:
         end_m = 3
-        verify_start = 4
-        verify_end = 10
 
     # 기준매출 계산
     if method in ('A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'):
@@ -311,12 +297,12 @@ def validate_store(store, curve_index, method='A', version='v1'):
     else:
         return None
 
-    # 검증 구간 실제 매출 확인
-    if len(sales) >= verify_end:
-        actual_verify = sales[verify_start:verify_end]
-        if all(v is not None and v > 0 for v in actual_verify):
+    # 검증: 항상 m4~m9 실제 평균과 비교
+    if len(sales) >= 10:
+        actual_m4_m9 = sales[4:10]
+        if all(v is not None and v > 0 for v in actual_m4_m9):
             predicted = []
-            for m in range(verify_start, verify_end):
+            for m in range(4, 10):
                 if m in curve_index:
                     predicted.append(base_revenue * (curve_index[m] / 100))
                 else:
@@ -324,28 +310,28 @@ def validate_store(store, curve_index, method='A', version='v1'):
                     break
 
             if predicted:
-                errors = [(p - a) / a * 100 for p, a in zip(predicted, actual_verify)]
-                actual_avg = np.mean(actual_verify)
+                errors = [(p - a) / a * 100 for p, a in zip(predicted, actual_m4_m9)]
+                actual_avg = np.mean(actual_m4_m9)
                 avg_error = (base_revenue - actual_avg) / actual_avg * 100
                 return {
                     'base_revenue': base_revenue,
                     'predicted': predicted,
-                    'actual': actual_verify,
+                    'actual': actual_m4_m9,
                     'errors': errors,
                     'avg_error': avg_error,
-                    'verify_start': verify_start,
-                    'verify_end': verify_end
+                    'verify_start': 4,
+                    'verify_end': 10
                 }
 
-    # 검증 데이터 부족 → 기준매출만 반환
+    # m4~m9 부족 → 기준매출만 반환
     return {
         'base_revenue': base_revenue,
         'predicted': None,
         'actual': None,
         'errors': None,
         'avg_error': None,
-        'verify_start': verify_start,
-        'verify_end': verify_end
+        'verify_start': 4,
+        'verify_end': 10
     }
 
 
