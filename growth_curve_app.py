@@ -832,12 +832,19 @@ def main():
 
             # 6가지 방식을 HTML 카드 형식으로
             method_results = []
+            tab2_end = ver_end_map.get(selected_version_tab2, 3)
             for method in ALL_METHODS:
+                # 동적 라벨
+                s = {'A': 1, 'B': 2, 'C': 3}.get(method)
+                if s and s <= tab2_end:
+                    label = f"m{s}~m{tab2_end} 사용" if s != tab2_end else f"m{s} 사용"
+                else:
+                    label = METHOD_LABELS.get(method, '')
                 result = validate_store(store, curve_index, method, selected_version_tab2)
                 if result:
                     method_results.append({
                         'method': method,
-                        'label': METHOD_LABELS[method],
+                        'label': label,
                         'base': result['base_revenue'],
                         'error': result['avg_error'],
                         'available': True
@@ -845,7 +852,7 @@ def main():
                 else:
                     method_results.append({
                         'method': method,
-                        'label': METHOD_LABELS[method],
+                        'label': label,
                         'base': 0,
                         'error': None,
                         'available': False
