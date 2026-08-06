@@ -1174,30 +1174,56 @@ def main():
         std_g2 = calc_weighted_std(g2)
         std_all = calc_weighted_std(stores_curve)
 
+        def calc_weighted_cv(store_list):
+            cvs_list, counts_list = [], []
+            for m_idx in range(48):
+                vals = [s['indices'][m_idx] for s in store_list
+                        if m_idx < len(s['indices']) and s['indices'][m_idx] is not None]
+                if len(vals) >= 2:
+                    avg = np.mean(vals)
+                    std = np.std(vals, ddof=1)
+                    if avg != 0:
+                        cvs_list.append(std / avg * 100)
+                        counts_list.append(len(vals))
+            return np.average(cvs_list, weights=counts_list) if cvs_list else 0
+
+        cv_g0 = calc_weighted_cv(g0)
+        cv_g1 = calc_weighted_cv(g1)
+        cv_g2 = calc_weighted_cv(g2)
+        cv_all = calc_weighted_cv(stores_curve)
+
         st.markdown(f'''
         <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 1rem 0;">
             <div style="background: #EBF5FB; border: 2px solid #2471A3; border-radius: 10px; padding: 18px; text-align: center;">
                 <div style="font-size: 0.8rem; color: #5D6D7E; font-weight: 600;">그룹 0 (경쟁 0)</div>
-                <div style="font-size: 1.8rem; font-weight: bold; color: #1A3A5C;">{std_g0:.2f}</div>
-                <div style="font-size: 0.65rem; color: #95A5A6;">{len(g0)}개 매장</div>
+                <div style="font-size: 2rem; font-weight: bold; color: #1A3A5C;">{cv_g0:.2f}%</div>
+                <div style="font-size: 0.65rem; color: #95A5A6; margin-bottom: 4px;">CV 가중평균</div>
+                <div style="font-size: 0.9rem; color: #5D6D7E;">σ {std_g0:.2f}</div>
+                <div style="font-size: 0.6rem; color: #ADB5BD;">{len(g0)}개 매장</div>
             </div>
             <div style="background: #EAFAF1; border: 2px solid #2ECC71; border-radius: 10px; padding: 18px; text-align: center;">
                 <div style="font-size: 0.8rem; color: #5D6D7E; font-weight: 600;">그룹 1</div>
-                <div style="font-size: 1.8rem; font-weight: bold; color: #1E8449;">{std_g1:.2f}</div>
-                <div style="font-size: 0.65rem; color: #95A5A6;">{len(g1)}개 매장</div>
+                <div style="font-size: 2rem; font-weight: bold; color: #1E8449;">{cv_g1:.2f}%</div>
+                <div style="font-size: 0.65rem; color: #95A5A6; margin-bottom: 4px;">CV 가중평균</div>
+                <div style="font-size: 0.9rem; color: #5D6D7E;">σ {std_g1:.2f}</div>
+                <div style="font-size: 0.6rem; color: #ADB5BD;">{len(g1)}개 매장</div>
             </div>
             <div style="background: #FEF9E7; border: 2px solid #F39C12; border-radius: 10px; padding: 18px; text-align: center;">
                 <div style="font-size: 0.8rem; color: #5D6D7E; font-weight: 600;">그룹 2</div>
-                <div style="font-size: 1.8rem; font-weight: bold; color: #D68910;">{std_g2:.2f}</div>
-                <div style="font-size: 0.65rem; color: #95A5A6;">{len(g2)}개 매장</div>
+                <div style="font-size: 2rem; font-weight: bold; color: #D68910;">{cv_g2:.2f}%</div>
+                <div style="font-size: 0.65rem; color: #95A5A6; margin-bottom: 4px;">CV 가중평균</div>
+                <div style="font-size: 0.9rem; color: #5D6D7E;">σ {std_g2:.2f}</div>
+                <div style="font-size: 0.6rem; color: #ADB5BD;">{len(g2)}개 매장</div>
             </div>
             <div style="background: #F4ECF7; border: 2px solid #8E44AD; border-radius: 10px; padding: 18px; text-align: center;">
                 <div style="font-size: 0.8rem; color: #5D6D7E; font-weight: 600;">전체 (0~2)</div>
-                <div style="font-size: 1.8rem; font-weight: bold; color: #6C3483;">{std_all:.2f}</div>
-                <div style="font-size: 0.65rem; color: #95A5A6;">{len(stores_curve)}개 매장</div>
+                <div style="font-size: 2rem; font-weight: bold; color: #6C3483;">{cv_all:.2f}%</div>
+                <div style="font-size: 0.65rem; color: #95A5A6; margin-bottom: 4px;">CV 가중평균</div>
+                <div style="font-size: 0.9rem; color: #5D6D7E;">σ {std_all:.2f}</div>
+                <div style="font-size: 0.6rem; color: #ADB5BD;">{len(stores_curve)}개 매장</div>
             </div>
         </div>
-        <div style="text-align: center; font-size: 0.7rem; color: #95A5A6; margin-bottom: 1rem;">m1~m48 가중평균 표준편차 (매장수 가중)</div>
+        <div style="text-align: center; font-size: 0.7rem; color: #95A5A6; margin-bottom: 1rem;">m1~m48 가중평균 (매장수 가중) | CV = σ ÷ 평균 × 100</div>
         ''', unsafe_allow_html=True)
 
         # ── 그룹 선택 ──
