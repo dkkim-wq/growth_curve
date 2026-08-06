@@ -450,12 +450,6 @@ def main():
                     return f"{method}: m{start_m}~m{end_m} 사용"
             return f"{method}: {METHOD_LABELS.get(method, '')}"
 
-        selected_method = st.selectbox(
-            "상세 결과 방식 선택", version_methods,
-            format_func=lambda x: get_method_label(x, selected_version),
-            key="detail_method_sel"
-        )
-
         # 방식별 검증 실행
         results_all = {}
         for method in version_methods:
@@ -722,6 +716,13 @@ def main():
 
         st.markdown("---")
 
+        # 상세 결과 방식 선택
+        selected_method = st.selectbox(
+            "상세 결과 방식 선택", version_methods,
+            format_func=lambda x: get_method_label(x, selected_version),
+            key="detail_method_sel"
+        )
+
         # 선택된 방식 상세 테이블
         st.subheader(f"📋 방식 {selected_method} 상세 결과")
         results = results_all.get(selected_method, [])
@@ -747,8 +748,7 @@ def main():
                 t1_html += f'<tr style="background: {bg};">'
                 for h in headers_t1:
                     val = d.get(h, '')
-                    align = 'left' if h == '매장명' else 'center'
-                    t1_html += f'<td style="text-align: {align}; padding: 7px 8px; border-bottom: 1px solid #E8ECF0;">{val}</td>'
+                    t1_html += f'<td style="text-align: center; padding: 7px 8px; border-bottom: 1px solid #E8ECF0;">{val}</td>'
                 t1_html += '</tr>'
             t1_html += '</tbody></table></div>'
             st.markdown(t1_html, unsafe_allow_html=True)
