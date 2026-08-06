@@ -782,25 +782,34 @@ def main():
         st.subheader("🔍 개별 매장 상세 조회")
 
         store_names = [s['name'] for s in all_stores]
-        col_store, col_method, col_ver = st.columns([3, 2, 2])
+        ver_end_map = {'v1': 3, 'v2': 4, 'v3': 5, 'v4': 6, 'v5': 7, 'v6': 8}
+        col_store, col_ver, col_method = st.columns([3, 2, 2])
         with col_store:
             selected_store_name = st.selectbox(
                 "매장 선택", store_names,
                 index=0 if store_names else None
             )
-        with col_method:
-            selected_method_tab2 = st.selectbox(
-                "방식 선택", ALL_METHODS,
-                format_func=lambda x: f"{x}: {METHOD_LABELS[x]}",
-                key="tab2_method"
-            )
         with col_ver:
-            ver_end_map = {'v1': 3, 'v2': 4, 'v3': 5, 'v4': 6, 'v5': 7, 'v6': 8}
             selected_version_tab2 = st.selectbox(
                 "버전 선택",
                 ['v1', 'v2', 'v3', 'v4', 'v5', 'v6'],
                 format_func=lambda x: f"V{x[1]}: m1~m{ver_end_map[x]} 데이터",
                 key="tab2_version"
+            )
+        with col_method:
+            start_m_map = {'A': 1, 'B': 2, 'C': 3}
+            def fmt_method_tab2(x):
+                if x in ('AB', 'AC', 'BC', 'ABC'):
+                    return f"{x}: {METHOD_LABELS[x]}"
+                s = start_m_map[x]
+                e = ver_end_map.get(selected_version_tab2, 3)
+                if s == e:
+                    return f"{x}: m{s} 사용"
+                return f"{x}: m{s}~m{e} 사용"
+            selected_method_tab2 = st.selectbox(
+                "방식 선택", ALL_METHODS,
+                format_func=fmt_method_tab2,
+                key="tab2_method"
             )
 
         if selected_store_name:
@@ -952,8 +961,10 @@ def main():
                 st.markdown("---")
                 st.markdown(f"#### 방식 {selected_method_tab2} 상세")
 
+                v_start = result['verify_start']
+                v_end = result['verify_end']
                 detail_df = pd.DataFrame({
-                    '월차': [f'm{i} ({curve_index.get(i, 0):.1f}%)' for i in range(4, 10)],
+                    '월차': [f'm{i} ({curve_index.get(i, 0):.1f}%)' for i in range(v_start, v_end)],
                     '실제 매출': [f"{a:,.0f}" for a in result['actual']],
                     '예측 매출': [f"{p:,.0f}" for p in result['predicted']],
                     '오차율(%)': [f"{e:+.1f}%" for e in result['errors']]
@@ -962,7 +973,7 @@ def main():
 
                 # 예측 vs 실제 비교 차트
                 fig = go.Figure()
-                months = [f'm{i}' for i in range(4, 10)]
+                months = [f'm{i}' for i in range(v_start, v_end)]
                 fig.add_trace(go.Bar(
                     x=months, y=result['actual'],
                     name='실제매출', marker_color='#2471A3'
