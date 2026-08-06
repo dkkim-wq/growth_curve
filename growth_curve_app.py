@@ -1096,7 +1096,6 @@ def main():
     # ═══════════════════════════════════════════════════════════════
     with tab5:
         st.subheader("📉 그룹별 곡선지수 분산 분석")
-        st.markdown("각 매장의 개별 곡선지수와 그룹 평균 곡선지수 간의 표준편차·분산을 분석합니다.")
 
         # 데이터 로드
         @st.cache_data
@@ -1110,7 +1109,6 @@ def main():
                 group = str(row[3]).strip() if row[3] else None
                 if name is None or group is None or group == '3+':
                     continue
-                # G열(인덱스6)부터 m1~m48
                 indices = []
                 for i in range(6, min(54, len(row))):
                     val = row[i]
@@ -1118,7 +1116,7 @@ def main():
                 stores_curve.append({
                     'name': str(name),
                     'group': group,
-                    'indices': indices  # [m1, m2, ..., m48]
+                    'indices': indices
                 })
             wb.close()
             return stores_curve
@@ -1140,6 +1138,8 @@ def main():
             # 월차별 통계 계산
             max_months = 48
             stats_data = []
+            monthly_stds = []
+            monthly_counts = []
             for m_idx in range(max_months):
                 month_values = []
                 for s in filtered:
@@ -1151,7 +1151,6 @@ def main():
                     std = np.std(month_values, ddof=1)
                     var = np.var(month_values, ddof=1)
                     cv = (std / avg * 100) if avg != 0 else 0
-                    # 가중평균 지수 (프로그램에서 사용 중인 값)
                     weighted_avg = curve_index.get(m_idx + 1, None)
                     stats_data.append({
                         '월차': f'm{m_idx + 1}',
@@ -1159,18 +1158,51 @@ def main():
                         '가중평균지수': round(weighted_avg, 2) if weighted_avg else '-',
                         '그룹평균': round(avg, 2),
                         '표준편차(분산)': f"{std:.2f} ({var:.2f})",
-                        '변동계수(CV%)': round(cv, 2)
+                        '변동계수(CV%)': round(cv, 2),
+                        '_std': std,
+                        '_avg': avg
                     })
+                    monthly_stds.append(std)
+                    monthly_counts.append(len(month_values))
 
             if stats_data:
-                stats_df = pd.DataFrame(stats_data)
-                st.dataframe(stats_df, use_container_width=True, hide_index=True)
+                # ── m1~m4 가중평균 표준편차 (매장수 가중) ──
+                st.markdown("---")
+                early_stds = monthly_stds[:4]
+                early_counts = monthly_counts[:4]
+                if early_stds:
+                    weighted_std_m1_4 = np.average(early_stds, weights=early_counts)
+                else:
+                    weighted_std_m1_4 = 0
 
-                # 차트: 그룹 평균 ± 표준편차
+                # 요약 카드
+                summary_card = f'''
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 1rem 0;">
+                    <div style="background: #EBF5FB; border: 2px solid #2471A3; border-radius: 10px; padding: 20px; text-align: center;">
+                        <div style="font-size: 0.8rem; color: #5D6D7E; font-weight: 600; margin-bottom: 6px;">m1~m4 가중평균 표준편차</div>
+                        <div style="font-size: 2rem; font-weight: bold; color: #1A3A5C;">{weighted_std_m1_4:.2f}</div>
+                        <div style="font-size: 0.7rem; color: #95A5A6;">매장수 가중 적용</div>
+                    </div>
+                    <div style="background: #EAFAF1; border: 2px solid #2ECC71; border-radius: 10px; padding: 20px; text-align: center;">
+                        <div style="font-size: 0.8rem; color: #5D6D7E; font-weight: 600; margin-bottom: 6px;">m1~m4 단순평균 표준편차</div>
+                        <div style="font-size: 2rem; font-weight: bold; color: #1E8449;">{np.mean(early_stds):.2f}</div>
+                        <div style="font-size: 0.7rem; color: #95A5A6;">단순 평균</div>
+                    </div>
+                    <div style="background: #FEF9E7; border: 2px solid #F39C12; border-radius: 10px; padding: 20px; text-align: center;">
+                        <div style="font-size: 0.8rem; color: #5D6D7E; font-weight: 600; margin-bottom: 6px;">전체(m1~m48) 가중평균 표준편차</div>
+                        <div style="font-size: 2rem; font-weight: bold; color: #D68910;">{np.average(monthly_stds, weights=monthly_counts):.2f}</div>
+                        <div style="font-size: 0.7rem; color: #95A5A6;">매장수 가중 적용</div>
+                    </div>
+                </div>
+                '''
+                st.markdown(summary_card, unsafe_allow_html=True)
+
+                # ── 차트: 그룹 평균 ± 표준편차 ──
+                st.markdown("---")
                 fig_var = go.Figure()
                 months_list = [d['월차'] for d in stats_data]
-                avgs = [d['그룹평균'] for d in stats_data]
-                stds = [float(d['표준편차(분산)'].split(' ')[0]) for d in stats_data]
+                avgs = [d['_avg'] for d in stats_data]
+                stds = [d['_std'] for d in stats_data]
 
                 fig_var.add_trace(go.Scatter(
                     x=months_list, y=avgs,
@@ -1197,7 +1229,20 @@ def main():
                 )
                 st.plotly_chart(fig_var, use_container_width=True)
 
-                # 개별 매장 곡선 오버레이
+                # ── 월차별 상세 표 (접기) ──
+                st.markdown("---")
+                with st.expander("📋 월차별 상세 데이터 보기"):
+                    display_df = pd.DataFrame([{
+                        '월차': d['월차'],
+                        '매장수': d['매장수'],
+                        '가중평균지수': d['가중평균지수'],
+                        '그룹평균': d['그룹평균'],
+                        '표준편차(분산)': d['표준편차(분산)'],
+                        'CV(%)': d['변동계수(CV%)']
+                    } for d in stats_data])
+                    st.dataframe(display_df, use_container_width=True, hide_index=True)
+
+                # ── 개별 매장 곡선 오버레이 ──
                 st.markdown("---")
                 st.subheader("🏪 개별 매장 곡선지수")
                 show_stores = st.multiselect(
@@ -1207,19 +1252,18 @@ def main():
                 )
                 if show_stores:
                     fig_ind = go.Figure()
-                    # 선택 매장 그룹 정보 표시
                     group_info = ", ".join([
                         f"{s['name'].split(') ')[1] if ')' in s['name'] else s['name']} (그룹{s['group']})"
                         for s in filtered if s['name'] in show_stores
                     ])
                     st.caption(f"📌 {group_info}")
-                    # 그룹 평균
                     fig_ind.add_trace(go.Scatter(
                         x=months_list, y=avgs,
                         mode='lines', name='그룹 평균',
                         line=dict(color='#95A5A6', width=3, dash='dot')
                     ))
-                    colors = ['#1A3A5C', '#E74C3C', '#2ECC71', '#9B59B6', '#F39C12']
+                    colors = ['#1A3A5C', '#E74C3C', '#2ECC71', '#9B59B6', '#F39C12',
+                              '#1ABC9C', '#E67E22', '#8E44AD', '#2980B9', '#27AE60']
                     for idx, sname in enumerate(show_stores):
                         s = next(x for x in filtered if x['name'] == sname)
                         vals = [v for v in s['indices'][:max_months] if v is not None]
