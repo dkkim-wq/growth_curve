@@ -353,9 +353,9 @@ def main():
         )
 
     # 탭 구성
-    tab1, tab2, tab4, tab5 = st.tabs([
+    tab1, tab2, tab5 = st.tabs([
         "📊 전체 검증 결과", "🔍 개별 매장 조회",
-        "➕ 매장 데이터 추가", "📉 그룹별 분산 분석"
+        "📉 그룹별 분산 분석"
     ])
 
     # ═══════════════════════════════════════════════════════════════
@@ -962,116 +962,6 @@ def main():
                 st.plotly_chart(fig2, use_container_width=True)
 
     # ═══════════════════════════════════════════════════════════════
-    # 탭 4: 매장 데이터 추가
-    # ═══════════════════════════════════════════════════════════════
-    with tab4:
-        st.subheader("➕ 신규 매장 데이터 추가")
-        st.markdown("새 매장의 월별 매출 데이터를 입력하여 성장곡선 검증에 포함시킵니다.")
-
-        with st.form("add_store_form"):
-            store_name = st.text_input(
-                "매장명", placeholder="예: (0099) 강남역점"
-            )
-            sales_input = st.text_area(
-                "월별 매출 (m0부터, 쉼표로 구분)",
-                placeholder="예: 500000, 1200000, 1500000, 2000000, ...",
-                help="m0부터 순서대로 월매출을 입력하세요. 최소 10개월 필요."
-            )
-            submitted = st.form_submit_button("매장 추가", type="primary")
-
-            if submitted:
-                if not store_name:
-                    st.error("매장명을 입력해주세요.")
-                elif not sales_input:
-                    st.error("매출 데이터를 입력해주세요.")
-                else:
-                    try:
-                        sales_list = [
-                            int(s.strip().replace(',', ''))
-                            for s in sales_input.split(',')
-                            if s.strip()
-                        ]
-                        if len(sales_list) < 4:
-                            st.error("최소 4개월 이상의 매출 데이터가 필요합니다.")
-                        else:
-                            new_store = {
-                                'name': store_name,
-                                'sales': sales_list
-                            }
-                            added = load_added_stores()
-                            added.append(new_store)
-                            save_added_stores(added)
-                            st.success(
-                                f"✅ '{store_name}' 매장이 추가되었습니다! "
-                                f"({len(sales_list)}개월 데이터)"
-                            )
-                            st.cache_data.clear()
-                            st.rerun()
-                    except ValueError:
-                        st.error("매출 데이터 형식이 올바르지 않습니다. "
-                                 "숫자와 쉼표만 사용해주세요.")
-
-        # CSV 업로드 방식
-        st.markdown("---")
-        st.subheader("📁 CSV/엑셀 파일로 일괄 추가")
-        uploaded_file = st.file_uploader(
-            "파일 업로드 (CSV 또는 Excel)",
-            type=['csv', 'xlsx'],
-            help="컬럼: 매장명, m0, m1, m2, ... (월별 매출)"
-        )
-
-        if uploaded_file:
-            try:
-                if uploaded_file.name.endswith('.csv'):
-                    upload_df = pd.read_csv(uploaded_file)
-                else:
-                    upload_df = pd.read_excel(uploaded_file)
-
-                st.dataframe(upload_df.head(), use_container_width=True)
-
-                if st.button("업로드 데이터 추가", type="primary"):
-                    added = load_added_stores()
-                    count = 0
-                    for _, row in upload_df.iterrows():
-                        name = str(row.iloc[0])
-                        sales = [
-                            int(v) for v in row.iloc[1:].dropna().values
-                            if v and float(v) > 0
-                        ]
-                        if sales:
-                            added.append({'name': name, 'sales': sales})
-                            count += 1
-                    save_added_stores(added)
-                    st.success(f"✅ {count}개 매장이 추가되었습니다!")
-                    st.cache_data.clear()
-                    st.rerun()
-            except Exception as e:
-                st.error(f"파일 처리 오류: {e}")
-
-        # 추가된 매장 관리
-        st.markdown("---")
-        st.subheader("📝 추가된 매장 관리")
-        added = load_added_stores()
-        if added:
-            for i, store in enumerate(added):
-                col_name, col_data, col_del = st.columns([3, 5, 1])
-                with col_name:
-                    st.markdown(f"**{store['name']}**")
-                with col_data:
-                    st.caption(
-                        f"{len(store['sales'])}개월 | "
-                        f"평균: {np.mean(store['sales']):,.0f}원"
-                    )
-                with col_del:
-                    if st.button("🗑️", key=f"del_{i}"):
-                        added.pop(i)
-                        save_added_stores(added)
-                        st.cache_data.clear()
-                        st.rerun()
-        else:
-            st.info("추가된 매장이 없습니다.")
-
-    # ═══════════════════════════════════════════════════════════════
     # 탭 5: 그룹별 분산 분석
     # ═══════════════════════════════════════════════════════════════
     with tab5:
@@ -1131,9 +1021,12 @@ def main():
                     std = np.std(month_values, ddof=1)
                     var = np.var(month_values, ddof=1)
                     cv = (std / avg * 100) if avg != 0 else 0
+                    # 가중평균 지수 (프로그램에서 사용 중인 값)
+                    weighted_avg = curve_index.get(m_idx + 1, None)
                     stats_data.append({
                         '월차': f'm{m_idx + 1}',
                         '매장수': len(month_values),
+                        '가중평균지수': round(weighted_avg, 2) if weighted_avg else '-',
                         '그룹평균': round(avg, 2),
                         '표준편차': round(std, 2),
                         '분산': round(var, 2),
