@@ -11,7 +11,7 @@ import json
 # ══════════════════════════════════════════════════════════════════
 
 st.set_page_config(
-    page_title="성장곡선 검증 프로그램",
+    page_title="예측 기준 매출 검증 프로그램",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -368,11 +368,10 @@ def predict_growth_curve(base_revenue, curve_index, months=48):
 # 메인 앱
 # ══════════════════════════════════════════════════════════════════
 def main():
-    st.markdown('<div class="main-header">📈 성장곡선 검증 프로그램</div>',
+    st.markdown('<div class="main-header">📈 예측 기준 매출 검증 프로그램</div>',
                 unsafe_allow_html=True)
     st.markdown('<div class="sub-header">'
-                'm1~m3 매출로 역산한 기준매출 → m4~m9 예측 vs 실제 오차율 비교 '
-                '| 곡선지수: 그룹0·1·2 매장수 가중평균</div>',
+                '예측 기준 매출 vs 실제 기준 매출 오차율 검증 | 곡선지수 : 그룹 0~2 매장 수 가중 평균</div>',
                 unsafe_allow_html=True)
 
     # 데이터 로드
