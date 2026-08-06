@@ -1040,7 +1040,7 @@ def main():
                 fig_var = go.Figure()
                 months_list = [d['월차'] for d in stats_data]
                 avgs = [d['그룹평균'] for d in stats_data]
-                stds = [d['표준편차'] for d in stats_data]
+                stds = [float(d['표준편차(분산)'].split(' ')[0]) for d in stats_data]
 
                 fig_var.add_trace(go.Scatter(
                     x=months_list, y=avgs,
