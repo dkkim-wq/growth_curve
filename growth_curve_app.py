@@ -822,8 +822,8 @@ def main():
             max_month = get_store_max_month(store)
             st.markdown(f"**데이터: m0 ~ m{max_month} ({max_month+1}개월)**")
 
-            # 실제평균 한 번만 표시
-            sample_result = validate_store(store, curve_index, 'A', selected_version_tab2)
+            # 실제평균 한 번만 표시 (항상 m4~m9 기준, 버전 무관)
+            sample_result = validate_store(store, curve_index, 'A', 'v1')
             if sample_result and sample_result['actual'] is not None:
                 actual_avg = np.mean(sample_result['actual'])
                 st.markdown(f"**실제 기준 매출(오픈4~9개월 평균)=100 : :blue[{actual_avg:,.0f}원]**")
