@@ -1209,7 +1209,22 @@ def main():
                 st.plotly_chart(fig_var, use_container_width=True)
 
                 with st.expander("📋 월차별 상세 데이터 보기"):
-                    st.dataframe(pd.DataFrame([{k: v for k, v in d.items() if not k.startswith('_')} for d in stats_data]), use_container_width=True, hide_index=True)
+                    display_data = [{k: v for k, v in d.items() if not k.startswith('_')} for d in stats_data]
+                    display_df = pd.DataFrame(display_data)
+                    st.dataframe(
+                        display_df,
+                        use_container_width=True,
+                        hide_index=True,
+                        height=400,
+                        column_config={
+                            '월차': st.column_config.TextColumn('월차', width='small'),
+                            '매장수': st.column_config.NumberColumn('매장수', width='small'),
+                            '가중평균지수': st.column_config.NumberColumn('가중평균지수', width='medium'),
+                            '그룹평균': st.column_config.NumberColumn('그룹평균', width='medium'),
+                            '표준편차(분산)': st.column_config.TextColumn('표준편차(분산)', width='medium'),
+                            'CV(%)': st.column_config.ProgressColumn('CV(%)', min_value=0, max_value=30, format="%.1f%%", width='medium')
+                        }
+                    )
 
                 st.markdown("---")
                 st.subheader("🏪 개별 매장 곡선지수")
