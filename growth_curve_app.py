@@ -1306,52 +1306,48 @@ def main():
                 st.markdown("---")
                 st.subheader("🏪 개별 매장 곡선지수")
                 show_stores = st.multiselect("매장 선택 (최대 10개)", [s['name'] for s in filtered], max_selections=10, key="var_stores")
+
+                # 4개 기준선 항상 표시
+                def calc_group_avgs(group_stores):
+                    gavgs = []
+                    for m_idx in range(max_months):
+                        vals = [s['indices'][m_idx] for s in group_stores
+                                if m_idx < len(s['indices']) and s['indices'][m_idx] is not None]
+                        gavgs.append(np.mean(vals) if vals else None)
+                    return gavgs
+
+                g0_avgs = calc_group_avgs(g0)
+                g1_avgs = calc_group_avgs(g1)
+                g2_avgs = calc_group_avgs(g2)
+                w_curve_y = [curve_index.get(m+1) for m in range(max_months)]
+                all_months = [f'm{m+1}' for m in range(max_months)]
+
+                fig_ind = go.Figure()
+                fig_ind.add_trace(go.Scatter(
+                    x=all_months, y=g0_avgs, mode='lines', name='그룹0 평균',
+                    line=dict(color='rgba(41,128,185,0.4)', width=1.5, dash='dot'),
+                    hovertemplate='그룹0: %{y:.1f}<extra></extra>'
+                ))
+                fig_ind.add_trace(go.Scatter(
+                    x=all_months, y=g1_avgs, mode='lines', name='그룹1 평균',
+                    line=dict(color='rgba(39,174,96,0.4)', width=1.5, dash='dot'),
+                    hovertemplate='그룹1: %{y:.1f}<extra></extra>'
+                ))
+                fig_ind.add_trace(go.Scatter(
+                    x=all_months, y=g2_avgs, mode='lines', name='그룹2 평균',
+                    line=dict(color='rgba(243,156,18,0.4)', width=1.5, dash='dot'),
+                    hovertemplate='그룹2: %{y:.1f}<extra></extra>'
+                ))
+                fig_ind.add_trace(go.Scatter(
+                    x=all_months, y=w_curve_y, mode='lines', name='가중평균(0~2)',
+                    line=dict(color='rgba(142,68,173,0.7)', width=2.5, dash='dashdot'),
+                    hovertemplate='가중평균: %{y:.1f}<extra></extra>'
+                ))
+
+                # 선택 매장 추가
                 if show_stores:
                     group_info = ", ".join([f"{s['name'].split(') ')[1] if ')' in s['name'] else s['name']} (그룹{s['group']})" for s in filtered if s['name'] in show_stores])
                     st.caption(f"📌 {group_info}")
-                    fig_ind = go.Figure()
-
-                    # 그룹별 평균 곡선지수 계산
-                    def calc_group_avgs(group_stores):
-                        gavgs = []
-                        for m_idx in range(max_months):
-                            vals = [s['indices'][m_idx] for s in group_stores
-                                    if m_idx < len(s['indices']) and s['indices'][m_idx] is not None]
-                            gavgs.append(np.mean(vals) if vals else None)
-                        return gavgs
-
-                    g0_avgs = calc_group_avgs(g0)
-                    g1_avgs = calc_group_avgs(g1)
-                    g2_avgs = calc_group_avgs(g2)
-
-                    # 가중평균 곡선지수 (프로그램 사용값)
-                    w_curve_y = [curve_index.get(m+1) for m in range(max_months)]
-
-                    all_months = [f'm{m+1}' for m in range(max_months)]
-
-                    # 4개 기준선 (반투명, 가늘게)
-                    fig_ind.add_trace(go.Scatter(
-                        x=all_months, y=g0_avgs, mode='lines', name='그룹0 평균',
-                        line=dict(color='rgba(41,128,185,0.4)', width=1.5, dash='dot'),
-                        hovertemplate='그룹0: %{y:.1f}<extra></extra>'
-                    ))
-                    fig_ind.add_trace(go.Scatter(
-                        x=all_months, y=g1_avgs, mode='lines', name='그룹1 평균',
-                        line=dict(color='rgba(39,174,96,0.4)', width=1.5, dash='dot'),
-                        hovertemplate='그룹1: %{y:.1f}<extra></extra>'
-                    ))
-                    fig_ind.add_trace(go.Scatter(
-                        x=all_months, y=g2_avgs, mode='lines', name='그룹2 평균',
-                        line=dict(color='rgba(243,156,18,0.4)', width=1.5, dash='dot'),
-                        hovertemplate='그룹2: %{y:.1f}<extra></extra>'
-                    ))
-                    fig_ind.add_trace(go.Scatter(
-                        x=all_months, y=w_curve_y, mode='lines', name='가중평균(0~2)',
-                        line=dict(color='rgba(142,68,173,0.7)', width=2.5, dash='dashdot'),
-                        hovertemplate='가중평균: %{y:.1f}<extra></extra>'
-                    ))
-
-                    # 선택 매장 (진하게, 두껍게)
                     colors = ['#1A3A5C','#E74C3C','#2ECC71','#D35400','#8E44AD','#1ABC9C','#C0392B','#2980B9','#27AE60','#F39C12']
                     for idx, sname in enumerate(show_stores):
                         s = next(x for x in filtered if x['name'] == sname)
@@ -1363,13 +1359,13 @@ def main():
                             marker=dict(size=6)
                         ))
 
-                    fig_ind.update_layout(
-                        title="개별 매장 곡선지수 비교",
-                        xaxis_title="월차", yaxis_title="곡선지수(%)",
-                        template="plotly_white", height=500,
-                        legend=dict(orientation="h", yanchor="bottom", y=-0.3, xanchor="center", x=0.5, font=dict(size=10))
-                    )
-                    st.plotly_chart(fig_ind, use_container_width=True)
+                fig_ind.update_layout(
+                    title="개별 매장 곡선지수 비교",
+                    xaxis_title="월차", yaxis_title="곡선지수(%)",
+                    template="plotly_white", height=500,
+                    legend=dict(orientation="h", yanchor="bottom", y=-0.3, xanchor="center", x=0.5, font=dict(size=10))
+                )
+                st.plotly_chart(fig_ind, use_container_width=True)
 
 
 if __name__ == "__main__":
