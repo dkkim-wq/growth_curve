@@ -445,39 +445,32 @@ def main():
             horizontal=True, key="version_sel"
         )
 
-        # 버전별 방식 목록
-        if selected_version == 'v1':
-            version_methods = ALL_METHODS  # A,B,C,AB,AC,BC,ABC
-        elif selected_version == 'v2':
-            version_methods = ['A', 'B', 'C', 'D']
-        elif selected_version == 'v3':
-            version_methods = ['A', 'B', 'C', 'D', 'E']
-        elif selected_version == 'v4':
-            version_methods = ['A', 'B', 'C', 'D', 'E', 'F']
-        elif selected_version == 'v5':
-            version_methods = ['A', 'B', 'C', 'D', 'E', 'F', 'G']
-        else:  # v6
-            version_methods = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
+        # 버전별 방식 목록 (모든 버전 동일: A,B,C + 복합)
+        version_methods = ALL_METHODS  # A,B,C,AB,AC,BC,ABC
 
-        # 버전별 방식 라벨 (동적)
+        # 버전별 방식 라벨 (동적, 물결표시)
         end_m_map = {'v1': 3, 'v2': 4, 'v3': 5, 'v4': 6, 'v5': 7, 'v6': 8}
         ver_end = end_m_map[selected_version]
         ver_labels = {}
         for m in version_methods:
-            start_m = {'A': 1, 'B': 2, 'C': 3, 'D': 4, 'E': 5, 'F': 6, 'G': 7, 'H': 8}.get(m)
+            start_m = {'A': 1, 'B': 2, 'C': 3}.get(m)
             if start_m and start_m <= ver_end:
-                months_str = ','.join([f'm{i}' for i in range(start_m, ver_end + 1)])
-                ver_labels[m] = months_str + ' 사용'
+                if start_m == ver_end:
+                    ver_labels[m] = f'm{start_m} 사용'
+                else:
+                    ver_labels[m] = f'm{start_m}~m{ver_end} 사용'
             else:
                 ver_labels[m] = METHOD_LABELS.get(m, '')
 
         # 상세 표에 사용할 방식 선택 (버전별 라벨)
         def get_method_label(method, ver):
             end_m = {'v1': 3, 'v2': 4, 'v3': 5, 'v4': 6, 'v5': 7, 'v6': 8}[ver]
-            start_m = {'A': 1, 'B': 2, 'C': 3, 'D': 4, 'E': 5, 'F': 6, 'G': 7, 'H': 8}.get(method)
+            start_m = {'A': 1, 'B': 2, 'C': 3}.get(method)
             if start_m and start_m <= end_m:
-                months_used = ','.join([f'm{i}' for i in range(start_m, end_m + 1)])
-                return f"{method}: {months_used} 사용"
+                if start_m == end_m:
+                    return f"{method}: m{start_m} 사용"
+                else:
+                    return f"{method}: m{start_m}~m{end_m} 사용"
             return f"{method}: {METHOD_LABELS.get(method, '')}"
 
         selected_method = st.selectbox(
@@ -523,31 +516,10 @@ def main():
                 return (tm, std, simple)
             best_overall = min(valid_methods, key=method_score)
 
-        # 요약 카드
-        if selected_version == 'v1':
-            summary_html = '<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 1rem 0;">'
-            first_row = ['A', 'B', 'C']
-            second_row = ['AB', 'AC', 'BC', 'ABC']
-        elif selected_version == 'v2':
-            summary_html = '<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 1rem 0;">'
-            first_row = ['A', 'B', 'C', 'D']
-            second_row = []
-        elif selected_version == 'v3':
-            summary_html = '<div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin: 1rem 0;">'
-            first_row = ['A', 'B', 'C', 'D', 'E']
-            second_row = []
-        elif selected_version == 'v4':
-            summary_html = '<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 1rem 0;">'
-            first_row = ['A', 'B', 'C', 'D', 'E', 'F']
-            second_row = []
-        elif selected_version == 'v5':
-            summary_html = '<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 1rem 0;">'
-            first_row = ['A', 'B', 'C', 'D', 'E', 'F', 'G']
-            second_row = []
-        else:  # v6
-            summary_html = '<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 1rem 0;">'
-            first_row = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
-            second_row = []
+        # 요약 카드 (모든 버전 3+4 레이아웃)
+        summary_html = '<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 1rem 0;">'
+        first_row = ['A', 'B', 'C']
+        second_row = ['AB', 'AC', 'BC', 'ABC']
 
         for method in first_row:
             errs = [abs(r['avg_error']) for r in results_all[method]]
